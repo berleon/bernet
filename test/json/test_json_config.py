@@ -15,6 +15,8 @@
 from unittest import TestCase
 import simplejson as json
 from bernet.json.json_config import *
+from bernet.json.json_config import _subclass_of_json_field, \
+    _TypeConstructableWrapper
 
 
 class TestREQUIRED(TestCase):
@@ -120,3 +122,11 @@ class TestJsonEncoding(TestCase):
         through_json = Company.loads(c.dumps())
         self.assertEqual(c, through_json)
 
+
+class TestTypeConstrutableWrapper(TestCase):
+    def test_is_constructable(self):
+        wrapper = _TypeConstructableWrapper(int)
+        self.assertEqual(wrapper.construct(20, FromJsonContext()), 20)
+
+        wrapper = _TypeConstructableWrapper(REQUIRED(int))
+        self.assertEqual(wrapper.construct(20, FromJsonContext()), 20)

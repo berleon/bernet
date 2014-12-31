@@ -30,6 +30,10 @@ class FromJsonContext():
         self._errors = []
         self.raise_exceptions = raise_exceptions
 
+    def n_errors(self):
+        """number of errors occurred"""
+        return len(self._errors)
+
     def _push(self, obj):
         self.stack.append(obj)
 
@@ -37,15 +41,15 @@ class FromJsonContext():
         self.stack.pop()
 
     @contextmanager
-    def step_into(self, obj):
+    def step_into(self, pos: str):
         try:
-            self._push(obj)
+            self._push(pos)
             yield
         finally:
             self._pop()
 
     def error(self, msg):
-        idents = [elem.identifer() for elem in self.stack]
+        idents = [elem for elem in self.stack]
         idents.reverse()
         parse_stack = "\n    ".join(idents)
         error_str = msg + '\n' + parse_stack
@@ -59,12 +63,17 @@ class FromJsonContext():
     def warning(self):
         raise NotImplementedError()
 
+    def print_report(self):
+        if self.n_errors() != 0:
+            err_str = self.errors_str()
+            print("There occurred {:} errors \n".format(self.n_errors()) + err_str)
+
 
 class JsonField(object):
     def construct(self, value, ctx=None):
         if ctx is None:
             ctx = FromJsonContext()
-        with ctx.step_into(self):
+        with ctx.step_into(type(self).__name__):
             return self._construct(value, ctx)
 
     def valid(self, value):
@@ -95,46 +104,45 @@ class JsonField(object):
             raise ValueError("Cannot convert object {:} to ".format())
 
 
-class REQUIRED(JsonField):
-    def __init__(self, tpeOrConstructable, default=None):
-        self.tpe = None
-        self.constructable = None
-        self._default = default
-        if type(tpeOrConstructable) == type:
-            self.tpe = tpeOrConstructable
-        elif issubclass(type(tpeOrConstructable), JsonField):
-            if type(tpeOrConstructable) == OPTIONAL:
-                raise ValueError("OPTIONAL in REQUIRED is ambiguous and"
-                                 " not allowed")
-            self.constructable = tpeOrConstructable
+class _TypeConstructableWrapper():
+    def __init__(self, tpe):
+        if type(tpe) == type or type(tpe) == _MetaJsonObject or \
+                issubclass(type(tpe), JsonField):
+            self.tpe = tpe
         else:
-            raise ValueError("{:} must be either a type or a subclass "
-                             "of Validable")
+            raise ValueError("Expected a type or a subclass of JsonField or "
+                             "JsonObject, but got {:}.".format(tpe))
+
+    def construct(self, value, ctx):
+        if type(value) == self.tpe:
+            return value
+        elif hasattr(self.tpe, 'construct'):
+            return self.tpe.construct(value, ctx)
+        else:
+            ctx.error("Expected type `{:}` but found `type({:}) = {:}`"
+                      .format(self.tpe, value, type(value)))
+
+
+class REQUIRED(JsonField):
+    def __init__(self, tpe, default=None):
+        if type(tpe) == OPTIONAL:
+            raise ValueError("OPTIONAL in REQUIRED is ambiguous and"
+                             " not allowed")
+
+        self.tpe = _TypeConstructableWrapper(tpe)
+        self._default = default
 
     def _construct(self, value, ctx):
-        if self.tpe is not None:
-            if type(value) != self.tpe:
-                ctx.error("{:} should be of type {:}, but is {:}"
-                          .format(value, self.tpe, type(value)))
-            else:
-                return value
-        else:
-            return self.constructable.construct(value, ctx)
+        return self.tpe.construct(value, ctx)
 
 
-def _constructable(tpe):
-    return hasattr(tpe, 'construct') or issubclass(type(tpe), JsonField)
+def _subclass_of_json_field(tpe):
+    return hasattr(tpe, 'construct') and issubclass(type(tpe), JsonField)
 
 
 class OPTIONAL(JsonField):
-    def __init__(self, tpeOrValidable, default=None):
-        self.type = None
-        self.constructable = None
-
-        if _constructable(tpeOrValidable):
-            self.constructable = tpeOrValidable
-        else:
-            self.type = tpeOrValidable
+    def __init__(self, tpe, default=None):
+        self.tpe = _TypeConstructableWrapper(tpe)
         self._default = default
 
     def default(self):
@@ -144,35 +152,42 @@ class OPTIONAL(JsonField):
         if value is None:
             return
 
-        if self.type is not None:
-            if type(value) != self.type:
-                ctx.error("Expected type {:}. Got {:}"
-                          .format(self.type, type(value)))
-            else:
-                return value
-        else:
-            return self.constructable.construct(value, ctx)
+        return self.tpe.construct(value, ctx)
 
 
 class EITHER(JsonField):
-    def __init__(self, *list):
-        if len(list) < 2:
+    def __init__(self, *args):
+        if len(args) < 2:
             raise ValueError("EITHER expects at least 2 elements")
-        self.constructable = set([c for c in list if _constructable(c)])
-        self.fix_values = set(list) - set(self.constructable)
+
+        self.types = list(map(lambda t: _TypeConstructableWrapper(t),
+                              filter(lambda t: type(t) == type, args)))
+        self.fix_values = list(filter(lambda el: type(el) != type, args))
 
     def _construct(self, value, ctx):
-        constructed_values = [c.construct(value, ctx)
-                              for c in self.constructable]
+        constructed_values = [t.construct(value, ctx) for t in self.types]
+
         truths = [c is not None for c in constructed_values] + \
                  [value == fix for fix in self.fix_values]
 
         # one and only one true truth :)
         if truths.count(True) != 1:
-            all = list(self.constructable | self.fix_values)
-            n_minus_one = ", ".join(all[:-1])
-            ctx.error("Expected {:} or {:}, but got `{:}'"
-                      .format(n_minus_one, all[-1], value))
+            all = self.types + self.fix_values
+            true_values = []
+            for i, boolean in enumerate(truths):
+                if boolean:
+                    true_values.append(all[i])
+
+            if true_values:
+                assert len(true_values) >= 2
+                n_minus_one = ", ".join(true_values[:-1])
+                ctx.error("Value `{:}` satisfies {:} and {:} "
+                          .format(value, n_minus_one, true_values[-1]))
+            else:  # no one matched
+                assert len(true_values) == 0
+                n_minus_one = ", ".join(all[:-1])
+                ctx.error("Value `{:}` doesn't satisfy any of {:} or {:}"
+                          .format(value, n_minus_one, all[-1]))
         else:
             if constructed_values:
                 return constructed_values[0]
@@ -182,7 +197,7 @@ class EITHER(JsonField):
 
 class REPEAT(JsonField):
     def __init__(self, tpe):
-        self.tpe = tpe
+        self.tpe = _TypeConstructableWrapper(tpe)
 
     def default(self):
         return []
@@ -191,24 +206,21 @@ class REPEAT(JsonField):
         if listlike is None:
             return
 
-        # TODO: check for iterable
-        if type(listlike) not in [list, tuple]:
-            ctx.error("Expected list type but got {:}".format(type(listlike)))
+        try:
+            listlike = iter(listlike)
+        except TypeError:
+            ctx.error("Expected listlike type but got type {:}"
+                      .format(type(listlike)))
+            return
 
-        if _constructable(self.tpe):
-            constructed_list = [self.tpe.construct(el) for el in listlike
-                                if type(el) != self.tpe]
-            listlike = constructed_list + [el for el in listlike
-                                           if type(el) == self.tpe]
+        # TODO: enter a new
 
-        wrong_el = [el for el in listlike if type(el) is not self.tpe]
-        if len(wrong_el) != 0:
-            types_msg = ["type({:}) = {:}".format(el, type(el))
-                         for el in wrong_el]
+        constructed_list = []
+        for i, el in enumerate(listlike):
+            with ctx.step_into("at Position {:}".format(i)):
+                constructed_list.append(self.tpe.construct(el, ctx))
 
-            ctx.error("Elements should be of type {:}, " .format(self.tpe) +
-                      "but found types: {:}".format(", ".join(types_msg)))
-        return list(listlike)
+        return list(constructed_list)
 
     def to_builtin(self, obj):
         return [super(REPEAT, self).to_builtin(item) for item in obj]
@@ -216,19 +228,19 @@ class REPEAT(JsonField):
 
 class _MetaJsonObject(type):
     def __new__(cls, clsname, bases, fields):
-        json_fields = {n: field_def for n, field_def in fields.items()
-                       if issubclass(type(field_def), JsonField)}
-        fields["__json_fields__"] = json_fields
+        config_fields = {n: field_def for n, field_def in fields.items()
+                         if issubclass(type(field_def), JsonField)}
+        fields["__config_fields__"] = config_fields
         return super(_MetaJsonObject, cls).__new__(cls, clsname, bases, fields)
 
 
 class JsonObject(object, metaclass=_MetaJsonObject):
-    __json_fields__ = {}
+    __config_fields__ = {}
 
     def __init__(self, **kwargs):
         # TODO: check for keys in kwargs, but who are not in self.ATTRIBUTES
         ctx = FromJsonContext(raise_exceptions=True)
-        for attr_name, attr_def in self.__json_fields__.items():
+        for attr_name, attr_def in self.__config_fields__.items():
             input_value = kwargs.get(attr_name)
             construct_value = attr_def.construct(input_value, ctx)
             if construct_value is None:
@@ -239,22 +251,27 @@ class JsonObject(object, metaclass=_MetaJsonObject):
     def _to_builtin(self):
         def to_dict_generator():
             for k, v in self.__dict__.items():
-                if k in self.__json_fields__:
-                    validable = self.__json_fields__[k]
+                if k in self.__config_fields__:
+                    validable = self.__config_fields__[k]
                     yield k, validable.to_builtin(v)
 
         return {k: v for k, v in to_dict_generator()}
 
     @classmethod
-    def construct(cls, obj, ctx=None):
-        for attr_name, validable in cls.__json_fields__.items():
-            obj[attr_name] = validable.construct(obj[attr_name], ctx)
+    def construct(cls, obj, ctx):
+        for attr_name, field in cls.__config_fields__.items():
+            obj[attr_name] = field.construct(obj[attr_name], ctx)
         return cls(**obj)
 
     @classmethod
     def loads(cls, str, **kwargs):
-        obj = json.loads(str)
-        return cls.construct(obj)
+        raw_obj = json.loads(str)
+        ctx = FromJsonContext()
+        obj = cls.construct(raw_obj, ctx)
+        if ctx.n_errors() != 0:
+            ctx.print_report()
+            return ValueError("Could not load {:}".format(cls.__name__))
+        return obj
 
     def dumps(self, **kwargs):
         dict = self._to_builtin()
@@ -264,7 +281,7 @@ class JsonObject(object, metaclass=_MetaJsonObject):
         if type(self) != type(other):
             return False
 
-        for attr in self.__json_fields__:
+        for attr in self.__config_fields__:
             if self.__dict__[attr] != other.__dict__[attr]:
                 return False
 
