@@ -1,10 +1,24 @@
+# Check on http://lint.travis-ci.org/ after modifying it!
+# Based on https://github.com/Jorge-C/ordination/blob/master/.travis.yml
+
 language: python
 python:
-  - "3.3"
-  - "3.4"
-# command to install dependencies
+- "3.3"
+- "3.4"
+# Setup anaconda
+before_install:
+- wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+- chmod +x miniconda.sh
+- ./miniconda.sh -b
+- export PATH=/home/travis/miniconda/bin:$PATH
+# Update conda itself
+- conda update --yes conda
+# The next couple lines fix a crash with multiprocessing on Travis and are not specific to using Miniconda
+- sudo rm -rf /dev/shm
+- sudo ln -s /run/shm /dev/shm
 install:
-  "pip install -r requirements.txt"
-# command to run tests
+- conda create --yes -n env_name python=$TRAVIS_PYTHON_VERSION pip numpy scipy matplotlib nose coverage
+- source activate env_name
+- pip install Theano thriftpy simplejson
 script:
-  ./run_tests.sh
+- ./run_tests.sh
