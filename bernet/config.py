@@ -133,7 +133,6 @@ class _TypeConstructableWrapper():
                       "type `{:}`."
                       .format(self.obj.__name__, value, type(value).__name__))
 
-
     def __str__(self):
         return str(self.obj)
 
@@ -264,7 +263,7 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
 
     def __init__(self, **kwargs):
         # TODO: check for keys in kwargs, but who are not in self.ATTRIBUTES
-        ctx = kwargs.get("__ctx__", InitContext(raise_exceptions=True))
+        ctx = self._get_ctx(kwargs)
         with ctx.step_into("Object", type(self).__name__):
             for attr_name, attr_def in self.__config_fields__.items():
                 input_value = kwargs.get(attr_name)
@@ -274,6 +273,10 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
                         construct_value = attr_def.default()
 
                     setattr(self, attr_name, construct_value)
+
+    @staticmethod
+    def _get_ctx(kwargs):
+        return kwargs.get("__ctx__", InitContext(raise_exceptions=True))
 
     def _to_builtin(self):
         def to_dict_generator():
