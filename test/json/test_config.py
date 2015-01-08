@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from unittest import TestCase
-import simplejson as json
-from bernet.json.json_config import *
-from bernet.json.json_config import _subclass_of_json_field, \
-    _TypeConstructableWrapper
+import re
+
+from bernet.config import *
+from bernet.config import _TypeConstructableWrapper
 
 
 class TestREQUIRED(TestCase):
@@ -65,35 +65,81 @@ class TestREPEAT(TestCase):
         # list of ints not list of floats
         self.assertFalse(rep.valid([2, 2]))
 
+    def test_error_handling_list(self):
+        self.assertRaises(ConfigException, Company,
+                          name="Labnet Inc.", employes="nobody")
+        max = Person(name="Max", sex="male", age=20)
+        self.assertRaisesRegex(
+            ConfigException,
+            "Expected a listlike type, but got type Person.\n"
+            "Traceback:\n"
+            "    Field:    employes,\n"
+            "    Object:   Company",
+            Company,
+            name="Labnet Inc.", employes=max)
+
+        self.assertRaisesRegex(
+            ConfigException,
+            "Expected type `Person`, but got value `susi` with type `str`.\n"
+            "Traceback:\n"
+            "    List:     at element [1],\n"
+            "    Field:    employes,\n"
+            "    Object:   Company",
+            Company,
+            name="Labnet Inc.", employes=[max, "susi"])
+
 
 class TestEITHER(TestCase):
-    def test_either(self):
+    def test_one_arg_fails(self):
+        self.assertRaises(ValueError, EITHER, "wrong")
+
+    def test_either_fixed_values(self):
         eth = EITHER("left", "right")
         self.assert_(eth.valid("right"))
         self.assert_(eth.valid("left"))
         self.assertFalse(eth.valid("middle"))
 
+    def test_either_int_str(self):
+        eth = EITHER(str, int)
+        self.assert_(eth.valid("right"))
+        self.assert_(eth.valid("left"))
 
-class Person(JsonObject):
+        self.assert_(eth.valid(14))
+        self.assert_(eth.valid(-1000))
+
+        self.assertFalse(eth.valid(1.4))
+        self.assertFalse(eth.valid(object))
+
+    def test_multiple_true(self):
+        eth2 = EITHER(Person, dict)
+        self.assertRaises(ConfigException, eth2.construct,
+                          {"name": "max", "sex": "male"},
+                          InitContext(raise_exceptions=True))
+
+    def test_same_fixed_values(self):
+        self.assertRaises(ValueError, EITHER, "right", "right")
+
+
+class Person(ConfigObject):
     name = REQUIRED(str)
     sex = EITHER("female", "male", "x")
     age = OPTIONAL(int)
 
 
-class Company(JsonObject):
+class Company(ConfigObject):
     name = REQUIRED(str)
     employes = REPEAT(Person)
 
 
-class TestJsonObject(TestCase):
+class TestConfigObject(TestCase):
     def test_attributes(self):
         p = Person(name="Max", sex="male", age=20)
         self.assertEqual(p.name, "Max")
         self.assertEqual(p.sex, "male")
         self.assertEqual(p.age, 20)
 
-        self.assertRaises(JsonException, Person, name=20, sex='female', age=20)
-        self.assertRaises(JsonException, Person, name='Max', sex='', age=20)
+        self.assertRaises(ConfigException, Person, name=20, sex='female', age=20)
+        self.assertRaises(ConfigException, Person, name='Max', sex='', age=20)
         susi = Person(name='Susi', sex='female')
         self.assertNotEqual(susi, p)
 
@@ -102,16 +148,34 @@ class TestJsonObject(TestCase):
         susi = Person(name='Susi', sex='female')
         c1 = Company(name="Planetron Inc.", employes=[max, susi])
         c2 = Company(name="Planetron Lichtenstein Inc.", employes=None)
+        c3 = Company(name="Ventoex Inc.",
+                     employes=[
+                         {"name": "Max", "sex": "male", "age": 20},
+                         {"name": "Susi", "sex": "female"},
+                     ])
 
         self.assertNotEqual(susi, c1)
-        self.assertRaises(JsonException, Company, name=20, employes=[])
+        self.assertRaises(ConfigException, Company, name=20, employes=[])
+
+    def test_error_handling_object(self):
+        self.assertRaises(ConfigException, Person)
+        self.assertRaisesRegex(
+            ConfigException,
+            re.escape(
+                "Expected type `str`, but got value `None` with type "
+                "`NoneType`.\n"
+                "Traceback:\n"
+                "    Field:    name,\n"
+                "    Object:   Person"),
+            Person,
+            sex="male")
 
 
 class TestJsonEncoding(TestCase):
     def test_simple_encoding(self):
         max = Person(name="Max", sex="male", age=20)
 
-        max_json = Person.loads(max.dumps())
+        max_json = Person.from_json(max.to_json())
         self.assertEqual(max, max_json)
 
     def test_complex_encoding(self):
@@ -119,14 +183,27 @@ class TestJsonEncoding(TestCase):
         hans = Person(name="Hans", sex="male", age=26)
 
         c = Company(name="Planetron Inc.", employes=[max, hans])
-        through_json = Company.loads(c.dumps())
+        through_json = Company.from_json(c.to_json())
         self.assertEqual(c, through_json)
+
+    def test_wrong_json_fails(self):
+        json_str = """{"name": "Max", "sex": "foo"}"""
+        Person.from_json(json_str)
+
+
+class TestInitContext(TestCase):
+    def test_stack(self):
+        ctx = InitContext()
+        with ctx.step_into("Object", "Person"):
+            with ctx.step_into("Field", "name"):
+                self.assertListEqual(ctx._stack, [("Object", "Person"),
+                                                  ("Field", "name")])
 
 
 class TestTypeConstrutableWrapper(TestCase):
     def test_is_constructable(self):
         wrapper = _TypeConstructableWrapper(int)
-        self.assertEqual(wrapper.construct(20, FromJsonContext()), 20)
+        self.assertEqual(wrapper.construct(20, InitContext()), 20)
 
         wrapper = _TypeConstructableWrapper(REQUIRED(int))
-        self.assertEqual(wrapper.construct(20, FromJsonContext()), 20)
+        self.assertEqual(wrapper.construct(20, InitContext()), 20)
