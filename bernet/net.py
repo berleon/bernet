@@ -50,4 +50,3 @@ class Network(ConfigObject):
             f.seek(0)
             npzfile = np.load(f)
             return {n: npzfile[n] for n in npzfile.files}
-

@@ -138,7 +138,8 @@ class TestConfigObject(TestCase):
         self.assertEqual(p.sex, "male")
         self.assertEqual(p.age, 20)
 
-        self.assertRaises(ConfigException, Person, name=20, sex='female', age=20)
+        self.assertRaises(ConfigException,  Person,
+                          name=20, sex='female', age=20)
         self.assertRaises(ConfigException, Person, name='Max', sex='', age=20)
         susi = Person(name='Susi', sex='female')
         self.assertNotEqual(susi, p)

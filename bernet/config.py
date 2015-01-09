@@ -69,7 +69,8 @@ class InitContext():
     def print_report(self):
         if self.n_errors() != 0:
             err_str = self.errors_str()
-            print("There occurred {:} errors \n".format(self.n_errors()) + err_str)
+            print("There occurred {:} errors \n"
+                  .format(self.n_errors()) + err_str)
 
     def error_in_scope(self):
         return self._errors
@@ -108,6 +109,7 @@ class ConfigField(object):
     def traceback_type(self):
         return "Field"
 
+
 def _is_type(tpe):
     return tpe == type or tpe == _MetaConfigObject
 
@@ -124,7 +126,7 @@ class _TypeConstructableWrapper():
         if type(value) == self.obj:
             return value
         elif inspect.isclass(self.obj) and issubclass(self.obj, ConfigObject) \
-            and (issubclass(type(value), dict) or isinstance(value, dict)):
+                and (issubclass(type(value), dict) or isinstance(value, dict)):
             return self.obj.new_with_ctx(ctx, value)
         elif hasattr(self.obj, 'construct'):
             return self.obj.construct(value, ctx)
@@ -255,7 +257,8 @@ class _MetaConfigObject(type):
         config_fields = {n: field_def for n, field_def in fields.items()
                          if issubclass(type(field_def), ConfigField)}
         fields["__config_fields__"] = config_fields
-        return super(_MetaConfigObject, cls).__new__(cls, clsname, bases, fields)
+        return super(_MetaConfigObject, cls).__new__(
+            cls, clsname, bases, fields)
 
 
 class ConfigObject(object, metaclass=_MetaConfigObject):
@@ -316,4 +319,3 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
                 return False
 
         return True
-

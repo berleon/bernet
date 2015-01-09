@@ -28,9 +28,11 @@ class TestNetwork(TestCase):
             random = np.random.sample((200, 200))
             np.savez(f, rand=random)
             f.seek(0)
-            nn = Network(name="test_net",
-                    data_url="file://" + f.name,
-                    data_sha256=utils.sha256_file(f))
+            nn = Network(
+                name="test_net",
+                data_url="file://" + f.name,
+                data_sha256=utils.sha256_file(f)
+            )
 
             self.assert_(np.all(nn.data["rand"] == random))
 
@@ -42,6 +44,3 @@ class TestNetwork(TestCase):
             self.assertRaises(ValueError, Network,
                               name="test_net", data_url="file://" + f.name,
                               data_sha256="wrong")
-
-
-

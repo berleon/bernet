@@ -50,4 +50,3 @@ def sha256_file(file, block_size: int=65536) -> str:
         buf = file.read(block_size)
 
     return sha.hexdigest()
-
