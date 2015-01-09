@@ -166,7 +166,7 @@ class OPTIONAL(ConfigField):
 
     def _construct(self, value, ctx):
         if value is None:
-            return
+            return self.default()
 
         return self.tpe.construct(value, ctx)
 

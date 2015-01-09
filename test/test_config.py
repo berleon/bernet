@@ -47,6 +47,11 @@ class TestOPTIONAL(TestCase):
         self.assert_(opt.valid(0))
         self.assertFalse(opt.valid(2.2))
 
+    def test_optional_default(self):
+        opt = OPTIONAL(float, default=1.)
+        self.assertEqual(opt.construct(0.), 0.)
+        self.assertEqual(opt.construct(None), 1.)
+
     def test_optional_nested(self):
         opt = OPTIONAL(REPEAT(int))
         self.assert_(opt.valid([]))
