@@ -78,4 +78,3 @@ def h(shape):
 def w(shape):
     """:return the width of `shape`."""
     return shape[-1]
-
