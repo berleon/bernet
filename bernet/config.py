@@ -253,7 +253,14 @@ class REPEAT(ConfigField):
 
 
 class _MetaConfigObject(type):
-    def __new__(cls, clsname, bases, fields):
+    def __new__(cls, clsname, bases, my_fields):
+        if bases is not None:
+            bases_fields = {k: v for b in bases for k, v in b.__dict__.items()}
+        else:
+            bases_fields = {}
+
+        fields = bases_fields
+        fields.update(my_fields)
         config_fields = {n: field_def for n, field_def in fields.items()
                          if issubclass(type(field_def), ConfigField)}
         fields["__config_fields__"] = config_fields
@@ -265,7 +272,6 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
     __config_fields__ = {}
 
     def __init__(self, **kwargs):
-        # TODO: check for keys in kwargs, but who are not in self.ATTRIBUTES
         ctx = self._get_ctx(kwargs)
         with ctx.step_into("Object", type(self).__name__):
             for attr_name, attr_def in self.__config_fields__.items():
@@ -276,6 +282,13 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
                         construct_value = attr_def.default()
 
                     setattr(self, attr_name, construct_value)
+
+        valid_keys = list(self.__config_fields__.keys())
+
+        for k, arg in kwargs.items():
+            if k not in valid_keys:
+                raise ValueError("{!r} is not in allowed keys {!s}"
+                                 .format(k, valid_keys))
 
     @staticmethod
     def _get_ctx(kwargs):

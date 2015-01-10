@@ -14,6 +14,7 @@
 
 from unittest import TestCase
 import re
+import unittest
 
 from bernet.config import *
 from bernet.config import _TypeConstructableWrapper
@@ -136,6 +137,10 @@ class Company(ConfigObject):
     employes = REPEAT(Person)
 
 
+class Car(ConfigObject):
+    n_wheels = OPTIONAL(int, default=4)
+
+
 class TestConfigObject(TestCase):
     def test_attributes(self):
         p = Person(name="Max", sex="male", age=20)
@@ -175,6 +180,13 @@ class TestConfigObject(TestCase):
                 "    Object:   Person"),
             Person,
             sex="male")
+
+    def test_optional_default(self):
+        car3 = Car(n_wheels=3)
+        self.assertEqual(car3.n_wheels, 3)
+
+        car = Car()
+        self.assertEqual(car.n_wheels, 4)
 
 
 class TestJsonEncoding(TestCase):
