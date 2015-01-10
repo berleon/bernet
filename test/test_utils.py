@@ -15,7 +15,7 @@
 import hashlib
 import tempfile
 from unittest import TestCase
-from bernet.utils import download, sha256_file
+from bernet.utils import *
 
 
 class TestUtils(TestCase):
@@ -39,3 +39,13 @@ class TestUtils(TestCase):
                 sha256sum,
                 "e3b0c44298fc1c149afbf4c8996fb92427ae41e"
                 "4649b934ca495991b7852b855")
+
+    def test_shape_operators(self):
+        self.assertEqual(bs((5,)), 1)
+        self.assertEqual(chans((5,)), 1)
+        self.assertEqual(h((5,)), 1)
+
+        self.assertEqual(bs((5, 1, 4, 4)), 5)
+        self.assertEqual(chans((5, 1, 4, 4)), 1)
+        self.assertEqual(h((5, 1, 14, 4)), 14)
+        self.assertEqual(w((5, 1, 4, 40)), 40)

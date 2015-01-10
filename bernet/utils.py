@@ -50,3 +50,32 @@ def sha256_file(file, block_size: int=65536) -> str:
         buf = file.read(block_size)
 
     return sha.hexdigest()
+
+
+def bs(shape):
+    """:return the batch size of `shape`."""
+    if len(shape) >= 4:
+        return shape[-4]
+    else:
+        return 1
+
+
+def chans(shape):
+    if len(shape) >= 3:
+        return shape[-3]
+    else:
+        return 1
+
+
+def h(shape):
+    """:return the width of `shape`."""
+    if len(shape) >= 2:
+        return shape[-2]
+    else:
+        return 1
+
+
+def w(shape):
+    """:return the width of `shape`."""
+    return shape[-1]
+
