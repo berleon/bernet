@@ -53,9 +53,12 @@ class InitContext():
     def error(self, msg):
         idents = [(obj + ": ").ljust(10) + name for obj, name in self._stack]
         idents.reverse()
-        parse_stack = "Traceback:\n    " + \
-                      ",\n    ".join(idents)
-        error_str = msg + '\n' + parse_stack
+        parse_stack = ""
+        if len(idents) > 0:
+            parse_stack = "\nTraceback:\n    " + \
+                          ",\n    ".join(idents)
+
+        error_str = msg + parse_stack
         self._errors.append(error_str)
         if self.raise_exceptions:
             raise ConfigException(error_str)
