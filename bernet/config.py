@@ -286,7 +286,7 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
 
                     setattr(self, attr_name, construct_value)
 
-        valid_keys = list(self.__config_fields__.keys())
+        valid_keys = list(self.__config_fields__.keys()) + ["__ctx__"]
 
         for k, arg in kwargs.items():
             if k not in valid_keys:
