@@ -143,13 +143,13 @@ class _TypeConstructableWrapper():
 
 
 class REQUIRED(ConfigField):
-    def __init__(self, tpe, default=None):
+    def __init__(self, tpe):
         if type(tpe) == OPTIONAL:
             raise ValueError("OPTIONAL in REQUIRED is ambiguous and"
                              " not allowed")
 
         self.tpe = _TypeConstructableWrapper(tpe)
-        self._default = default
+        self._default = None
 
     def _construct(self, value, ctx):
         return self.tpe.construct(value, ctx)
