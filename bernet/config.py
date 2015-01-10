@@ -87,7 +87,7 @@ class ConfigField(object):
 
     def valid(self, value):
         try:
-            self.construct(value, InitContext(raise_exceptions=True))
+            self.construct(value, ctx=InitContext(raise_exceptions=True))
             return True
         except ConfigException:
             return False
