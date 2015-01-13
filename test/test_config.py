@@ -154,6 +154,15 @@ class TestConfigObject(TestCase):
         susi = Person(name='Susi', sex='female')
         self.assertNotEqual(susi, p)
 
+    @unittest.skip("issue: #1")
+    def test_attributes_assignment(self):
+        p = Person(name="Max", sex="male", age=20)
+        self.assertEqual(p.sex, "male")
+        p.sex = "female"
+        self.assertEqual(p.sex, "female")
+        with self.assertRaises(ConfigException):
+            p.sex = "wrong"
+
     def test_nested(self):
         max = Person(name="Max", sex="male", age=20)
         susi = Person(name='Susi', sex='female')
