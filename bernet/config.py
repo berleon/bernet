@@ -15,6 +15,8 @@
 from contextlib import contextmanager
 import inspect
 
+import numpy as np
+
 try:
     import simplejson as json
 except ImportError:
@@ -331,7 +333,15 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
             return False
 
         for attr in self.__config_fields__:
-            if self.__dict__[attr] != other.__dict__[attr]:
+            if not isinstance(self.__dict__[attr],
+                              type(other.__dict__[attr])) or \
+                not isinstance(other.__dict__[attr],
+                               type(self.__dict__[attr])):
+                return False
+            if isinstance(self.__dict__[attr], np.ndarray):
+                if not np.all(self.__dict__[attr] == self.__dict__[attr]):
+                    return False
+            elif self.__dict__[attr] != other.__dict__[attr]:
                 return False
 
         return True
