@@ -79,7 +79,11 @@ class Parameter(ConfigObject):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.tensor = kwargs.get("tensor", None)
+        self.tensor = theano.shared(kwargs.get("tensor", None), name=self.name)
+
+
+class NotConnectedException(Exception):
+    pass
 
 
 class Layer(ConfigObject):
@@ -96,54 +100,134 @@ class Layer(ConfigObject):
             :param parameters: list of [..] TODO
             """
         super().__init__(**kwargs)
+        self._connected = False
+        self.input_shapes = {}
 
-    def parameter_shape(self, param: 'Parameter|str', input_shape=None):
+    def input_ports(self):
+        return "in",
+
+    def output_ports(self):
+        return "out",
+
+    def connected(self):
+        return self._connected
+
+    def set_input_shapes(self, input_shapes: "{str: tuple}"):
+        if not self._are_all_inputs_ports_satisfied_by(input_shapes.keys()):
+            not_found = self._not_found_in_input_ports(input_shapes.keys())
+            not_satisfied = self._not_satisfied_input_ports(
+                input_shapes.keys())
+            if len(not_satisfied) >= 1:
+                raise ValueError("Labels {!s} are not satisfied by {!s}".
+                                 format(not_satisfied, input_shapes.keys()))
+            if len(not_found) >= 1:
+                raise ValueError("Recieved input shapes for ports {!s}, but "
+                                 "got no such ports"
+                                 .format(not_found))
+
+        self.input_shapes = input_shapes
+        self._update_connection_status()
+
+    def clear_connections(self):
+        self._assert_connected()
+        self._connected = False
+        self.input_shapes = {}
+
+    def copy(self):
+        # TODO: checkout copying
+        raise NotImplementedError
+
+    def copy_disconnected(self):
+        raise NotImplementedError
+
+    def parameter_shape(self, param: 'Parameter|str'):
+        self._assert_connected()
         if type(param) == str:
             fitting_params = [p for p in self.parameters if p.name == param]
             assert len(fitting_params) == 1
             param = fitting_params[0]
 
-        return self._parameter_shape(param, input_shape=input_shape)
+        return self._parameter_shape(param)
 
-    def _parameter_shape(self, param: Parameter, input_shape=None):
+    def _parameter_shape(self, param: Parameter):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def fill_parameters(self, input_shape=None):
+    def fill_parameters(self):
         for p in self.parameters:
-            p.tensor = p.filler.fill(
-                self.parameter_shape(p, input_shape=input_shape))
+            p.tensor = T.as_tensor_variable(
+                p.filler.fill(self.parameter_shape(p)),
+                p.name)
 
     def set_parameter(self, name, nparray):
         self.parameters[name].tensor = nparray
 
     def loss(self):
+        self._assert_connected()
         return 0
 
-    def outputs(self, inputs, input_shapes=None):
+    def outputs(self, inputs: '{str: symbolic tensor}'):
         """
-        :param input: dict of "name": symbolic input variable
+        :param input: dict of {"<input_port>": symbolic tensor variable}
         """
-        for l in self.con_in_labels():
-            assert l in inputs, "no input for label {!r}".format(l)
-
-        out = self._outputs(inputs, input_shapes=input_shapes)
+        self._assert_connected()
+        for l in self.input_ports():
+            if l not in inputs:
+                raise KeyError("Expected a symbolic tensor variable for input"
+                               " port `{!s}`.".format(l))
+        out = self._outputs(inputs)
         if type(out) is not dict:
-            assert len(self.con_out_labels()) == 1
-            return {self.con_out_labels()[0]: out}
+            assert len(self.output_ports()) == 1
+            return {self.output_ports()[0]: out}
         else:
             return out
 
-    def _outputs(self, inputs, input_shapes=None):
+    def _outputs(self, inputs):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def output_shape(self, con_out_label=None, input_shape=None):
+    def output_shapes(self):
+        self._assert_connected()
+        return self._output_shapes()
+
+    def _output_shapes(self):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def con_in_labels(self):
-        return ["in"]
+    def output_shape(self, port=None):
+        if port is None:
+            assert len(self.output_ports()) == 1,\
+                "None is only acceptable if there is " \
+                "exactly one output channel."
+            port = self.output_ports()[0]
+        return self.output_shapes()[port]
 
-    def con_out_labels(self):
-        return ["out"]
+    def _not_satisfied_input_ports(self, given_ports):
+        return list(filter(lambda l: l not in given_ports,
+                           self.input_ports()))
+
+    def _not_found_in_input_ports(self, given_ports):
+        return list(filter(
+            lambda g: g not in self.input_ports(),
+            given_ports
+        ))
+
+    def _are_all_inputs_ports_satisfied_by(self, given_ports):
+        return len(self._not_satisfied_input_ports(given_ports)) == 0 \
+            and len(self._not_found_in_input_ports(given_ports)) == 0
+
+    def _update_connection_status(self):
+        self._connected = self._are_all_inputs_ports_satisfied_by(
+            self.input_shapes.keys())
+
+    def _assert_connected(self):
+        if not self._connected:
+            raise NotConnectedException(
+                "{:} is not connected. The following channels are not"
+                " connected: {:}"
+                .format(type(self).__name__,
+                        self._not_connected_input_ports()))
+
+    def _not_connected_input_ports(self):
+        return list(filter(lambda p: p not in self.input_shapes,
+                           self.input_ports()))
 
 
 class ConvolutionLayer(Layer):
@@ -171,27 +255,26 @@ class ConvolutionLayer(Layer):
             elif p.type == "bias":
                 self.bias = p
 
-    def _parameter_shape(self, param, input_shape=None):
-        assert input_shape is not None
+    def _parameter_shape(self, param):
         if param == self.weight:
-            return self.filter_shape(input_shape)
+            return self.filter_shape()
         if param == self.bias:
-            return self.bias_shape(input_shape)
+            return self.bias_shape()
 
-    def filter_shape(self, input_shape):
+    def filter_shape(self):
         return (self.num_feature_maps,
-                chans(input_shape),
+                chans(self.input_shapes["in"]),
                 self.kernel_h,
                 self.kernel_w)
 
-    def bias_shape(self, input_shape):
-        shp = self.filter_shape(input_shape)
-        return shp[0], shp[1], 1, 1
+    def bias_shape(self):
+        shp = self.filter_shape()
+        return shp[0],
 
-    def output_shape(self, con_out_label=None, input_shape=None):
-        assert input_shape is not None
+    def _output_shapes(self):
+        input_shape = self.input_shapes["in"]
         batch_size = bs(input_shape)
-        channels = self.num_feature_maps
+        channels = self.num_feature_maps  # * chans(input_shape)
         miss_h = self.kernel_h - 1
         miss_w = self.kernel_w - 1
 
@@ -211,21 +294,21 @@ class ConvolutionLayer(Layer):
         if max_steps_w % self.stride_v != 0:
             width += 1
 
-        return batch_size, channels, height, width
+        return {"out": (batch_size, channels, height, width)}
 
-    def _outputs(self, inputs, input_shapes=None):
-        assert "in" in input_shapes
-        assert "in" in inputs
+    def _outputs(self, inputs):
+        assert self.weight.tensor is not None
+
         conv_out = T.nnet.conv2d(
             input=inputs["in"],
+            image_shape=self.input_shapes["in"],
             filters=self.weight.tensor,
+            filter_shape=self.filter_shape(),
             subsample=(self.stride_h, self.stride_v),
-            image_shape=input_shapes["in"],
             border_mode=self.border_mode,
-            filter_shape=self.filter_shape(input_shapes["in"])
         )
 
-        return conv_out + self.bias.tensor
+        return conv_out + self.bias.tensor.dimshuffle('x', 0, 'x', 'x')
 
 
 class Shape(REPEAT):

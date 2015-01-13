@@ -32,20 +32,88 @@ class StandardLayerTest(object):
         self.assertEqual(type(self.layer.monitors), dict)
 
 
+def layer_life_cycle(test: TestCase, l: Layer, input_shapes=None):
+    gauss = GaussianFiller()
+    # default labels are "in" and "out"
+    test.assertEqual(type(l.input_ports()), tuple)
+    test.assertEqual(type(l.output_ports()), tuple)
+
+    # default state is to be not connected.
+    test.assertFalse(l._connected)
+    # All this functions are only callable, if the layer is connected.
+    test.assertRaises(NotConnectedException, l.loss)
+    test.assertRaises(NotConnectedException, l.parameter_shape, "foo")
+    test.assertRaises(NotConnectedException, l.output_shapes)
+    test.assertRaises(NotConnectedException, l.output_shape, port="name")
+    test.assertRaises(NotConnectedException, l.clear_connections)
+    test.assertRaises(NotConnectedException, l.outputs, {})
+
+    # setup the connection
+    if input_shapes is None:
+        input_shapes = {label: (1, 3, 16, 16) for label in l.input_ports()}
+
+    l.set_input_shapes(input_shapes)
+    # Now we should be connected
+    test.assertTrue(l._connected)
+    test.assertEqual(l.loss(), 0)
+    test.assertRaises(KeyError, l.outputs, {})
+    l.fill_parameters()
+
+    inputs = {label: theano.shared(gauss.fill(shp))
+              for label, shp in input_shapes.items()}
+
+    sym_outputs = l.outputs(inputs)
+    sorted_outs = sorted(sym_outputs.items(), key=lambda pair: pair[0])
+    f = theano.function([], list(map(lambda p: p[1], sorted_outs)))
+
+    real_outputs = f()
+    for i, out in enumerate(real_outputs):
+        port = sorted_outs[i][0]
+        test.assertEqual(out.shape, l.output_shape(port), input_shapes)
+
+    for p in l.parameters:
+        test.assertEqual(type(l.parameter_shape(p)), tuple)
+
+    for port in l.output_ports():
+        test.assertEqual(type(l.output_shape(port=port)), tuple)
+
+    test.assertEqual(type(l.output_shapes()), dict)
+
+    test.assertTrue(l.connected())
+    l.clear_connections()
+    test.assertFalse(l.connected())
+
+
 class TestLayer(TestCase):
     def setUp(self):
-        self.layer = Layer(type="FCLayer", name="test_layer")
+        #                        just some random type to satisfy EITHER
+        self.layer = Layer(type="FCLayer",
+                           name="test_layer")
 
     def test_base_function(self):
-        self.assertEqual(self.layer.loss(), 0)
+        l = self.layer
+        # default labels are "in" and "out"
+        self.assertTupleEqual(l.input_ports(), ("in",))
+        self.assertTupleEqual(l.output_ports(), ("out",))
 
-        self.assertListEqual(self.layer.con_in_labels(), ["in"])
-        self.assertListEqual(self.layer.con_out_labels(), ["out"])
+        # default state is to be not connected.
+        self.assertFalse(l._connected)
+        # All this functions are only callable, if the layer is connected.
+        self.assertRaises(NotConnectedException, l.loss)
+        self.assertRaises(NotConnectedException, l.parameter_shape, "foo")
+        self.assertRaises(NotConnectedException, l.output_shape)
+        self.assertRaises(NotConnectedException, l.clear_connections)
+        self.assertRaises(NotConnectedException, l.outputs, {})
 
-        self.assertRaises(AssertionError, self.layer.outputs, {})
+        # setup the connection
+        l.set_input_shapes({"in": (2, 3, 16, 16)})
+        # Now we should be connected
+        self.assertTrue(l._connected)
 
-        self.assertNotImplemented(self.layer.outputs, {"in": []})
-        self.assertNotImplemented(self.layer.output_shape)
+        self.assertEqual(l.loss(), 0)
+        self.assertRaises(KeyError, l.outputs, {})
+        self.assertNotImplemented(l.outputs, {"in": []})
+        self.assertNotImplemented(l.output_shape, "out")
 
     def assertNotImplemented(self, callable, *args, **kwargs):
         self.assertRaisesRegex(
@@ -183,58 +251,60 @@ class TestConvolutionLayer(TestCase):
                 Parameter(name="conv#test#weight", type="weight")
             ]
         )
+        conv.set_input_shapes({"in": (32, 3, 200, 200)})
         # bs, c, h, w
         self.assertEqual(
-            conv.parameter_shape(conv.weight, (32, 3, 200, 200)),
+            conv.parameter_shape(conv.weight),
             (20, 3, 5, 5)
         )
         conv.num_feature_maps = 32
         self.assertEqual(
-            conv.parameter_shape(conv.weight, (32, 3, 200, 200)),
+            conv.parameter_shape(conv.weight),
             (32, 3, 5, 5)
         )
 
     def test_output_shape_manuel(self):
         conv = self.simple_conv_layer
         input_shape = (32, 3, 128, 128)
+        conv.set_input_shapes({"in": input_shape})
         self.assertEqual(
-            conv.output_shape(input_shape=input_shape),
+            conv.output_shape("out"),
             (32, conv.num_feature_maps,
              128-conv.kernel_h+1, 128-conv.kernel_w+1))
+        conv.clear_connections()
 
     def test_output_shape_auto(self):
-        input_shapes = [(3, 3, 16, 16),
-                        (1, 3, 64, 64),
-                        (1, 1, 128, 128),
-                        (1, 1, 51, 51)]
+        input_shapes = [(3, 1, 16, 16),
+                        (1, 3, 32, 32),
+                        (1, 2, 128, 128),
+                        (1, 1, 21, 21)]
         for input_shape in input_shapes:
             for conv in self.conv_layers:
-                filter_shape = conv.filter_shape(input_shape)
-                self.check_conv2d_shapes(
-                    conv,
-                    input_shape,
-                    conv.output_shape(input_shape=input_shape),
-                    filters=self.gauss.fill(filter_shape),
-                    filter_shape=filter_shape,
-                    border_mode=conv.border_mode,
-                    subsample=(conv.stride_h, conv.stride_v)
-                )
+                conv.set_input_shapes({"in": input_shape})
+                conv.fill_parameters()
+                filter_shape = conv.filter_shape()
+                self.assertEqual(bs(filter_shape), conv.num_feature_maps)
+                self.assertEqual(chans(filter_shape), chans(input_shape))
+                x = theano.shared(GaussianFiller().fill(input_shape))
+                conv_out = conv.outputs({"in": x})
+                f = theano.function([], conv_out["out"])
+                expected_output_shape = conv.output_shape("out")
 
-    def check_conv2d_shapes(self, conv_layer, input_shape,
-                            expected_output_shape, **kwargs):
-        x = theano.shared(GaussianFiller().fill(input_shape))
-        conv_x = theano.tensor.nnet.conv2d(x, **kwargs)
-        f = theano.function([], conv_x)
-
-        self.assertEqual(f().shape, expected_output_shape,
-                         "input_shape was: {!s},\n"
-                         "ConvolutionLayer.name: {!r}"
-                         .format(input_shape,
-                                 conv_layer.name))
+                self.assertEqual(f().shape,
+                                 expected_output_shape,
+                                 "input_shape was: {!s},\n"
+                                 "ConvolutionLayer.name: {!r}"
+                                 .format(input_shape, conv.name))
+                conv.clear_connections()
 
     def test_outputs(self):
         conv = self.simple_conv_layer
         input_shape = (4, 3, 16, 16)
-        conv.fill_parameters(input_shape=input_shape)
+        conv.set_input_shapes({"in": input_shape})
+        conv.fill_parameters()
         x = theano.shared(self.gauss.fill(input_shape))
-        conv_out = conv.outputs({"in": x}, input_shapes={"in": input_shape})
+        conv_out = conv.outputs({"in": x})
+
+    def test_life_cycle(self):
+        for l in self.conv_layers:
+            layer_life_cycle(self, l, input_shapes={"in": (1, 3, 32, 32)})
