@@ -361,3 +361,20 @@ class TestActivationLayers(TestCase):
     def test_life_cycle(self):
         for layer_cls in self.layer_classes:
             layer_life_cycle(self, create_layer(layer_cls))
+
+
+class TestPoolingLayer(TestCase):
+    def test_life_cycle(self):
+        layer_options = [
+            ((2, 2), True),
+            ((5, 5), False),
+            ((4, 2), True),
+            ((2, 3), False)
+        ]
+        input_shapes = [(1, 1, 5, 5), (3, 1, 16, 16),
+                        (1, 1, 32, 32), (1, 1, 91, 31)]
+        for input_shape in input_shapes:
+            for poolsize, ignore_border in layer_options:
+                layer = create_layer(PoolingLayer, poolsize=poolsize,
+                                     ignore_border=ignore_border)
+                layer_life_cycle(self, layer, input_shapes={"in": input_shape})

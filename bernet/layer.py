@@ -16,6 +16,7 @@ import numpy as np
 import re
 import theano
 import theano.tensor as T
+import theano.tensor.signal.downsample
 
 from bernet.config import REQUIRED, OPTIONAL, EITHER, REPEAT, ConfigObject, \
     ConfigField
@@ -97,7 +98,8 @@ class NotConnectedException(Exception):
 class Layer(ConfigObject):
     name = REQUIRED(str)
     type = EITHER("ConvLayer", "FCLayer", "TanHLayer", "SoftmaxLayer",
-                  "SigmoidLayer", "ReLULayer", "DummyDataLayer")
+                  "SigmoidLayer", "ReLULayer", "DummyDataLayer",
+                  "PoolingLayer")
 
     parameters = REPEAT(Parameter)
 
@@ -352,6 +354,32 @@ class Shape(REPEAT):
                 ctx.error("Shape must be strictly positive.")
 
         return (1,) * (self.max_dims-len(constr_list)) + tuple(constr_list)
+
+
+class PoolingLayer(Layer):
+    poolsize = REQUIRED(Shape(max_dims=2))
+    ignore_border = OPTIONAL(bool, default=False)
+
+    def _output_shapes(self):
+        input_shape = self.input_shapes["in"]
+        batch_size = bs(input_shape)
+        channels = chans(input_shape)
+        width = w(input_shape) // w(self.poolsize)
+        height = h(input_shape) // h(self.poolsize)
+        if not self.ignore_border:
+            if w(input_shape) % w(self.poolsize) != 0:
+                width += 1
+            if h(input_shape) % h(self.poolsize) != 0:
+                height += 1
+
+        return {"out": (batch_size, channels, height, width)}
+
+    def _outputs(self, inputs):
+        return theano.tensor.signal.downsample.max_pool_2d(
+            input=inputs["in"],
+            ds=self.poolsize,
+            ignore_border=self.ignore_border
+        )
 
 
 # ---------------------------- Source Layers ----------------------------------
