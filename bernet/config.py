@@ -266,34 +266,52 @@ class _MetaConfigObject(type):
 
         fields = bases_fields
         fields.update(my_fields)
-        config_fields = {n: field_def for n, field_def in fields.items()
-                         if issubclass(type(field_def), ConfigField)}
-        fields["__config_fields__"] = config_fields
+        config_properties = {n: field_def for n, field_def in fields.items()
+                             if issubclass(type(field_def), ConfigField)}
+        fields["__config_properties__"] = config_properties
         return super(_MetaConfigObject, cls).__new__(
             cls, clsname, bases, fields)
 
 
 class ConfigObject(object, metaclass=_MetaConfigObject):
-    __config_fields__ = {}
+    __config_properties__ = {}
 
     def __init__(self, **kwargs):
         ctx = self._get_ctx(kwargs)
         with ctx.step_into("Object", type(self).__name__):
-            for attr_name, attr_def in self.__config_fields__.items():
-                input_value = kwargs.get(attr_name)
-                with ctx.step_into(attr_def.traceback_type(), attr_name):
-                    construct_value = attr_def.construct(input_value, ctx)
-                    if construct_value is None:
-                        construct_value = attr_def.default()
+            for field_name, field_def in self.__config_properties__.items():
+                field_value = kwargs.get(field_name)
+                with ctx.step_into(field_def.traceback_type(), field_name):
+                    # constructed_value = field_def.construct(field_value)
+                    self._add_property(field_name)
+                    self._set_property(field_name, field_value, ctx=ctx)
 
-                    setattr(self, attr_name, construct_value)
-
-        valid_keys = list(self.__config_fields__.keys()) + ["__ctx__"]
+        valid_keys = list(self.__config_properties__.keys()) + ["__ctx__"]
 
         for k, arg in kwargs.items():
             if k not in valid_keys:
-                raise ValueError("{!r} is not in allowed keys {!s}"
+                raise ValueError("{!r} is not in the allowed keys `{!s}`"
                                  .format(k, valid_keys))
+
+    def _add_property(self, name):
+        fget = lambda slf: slf._get_property(name)
+        fset = lambda slf, value: slf._set_property(name, value)
+
+        setattr(self.__class__, name, property(fget, fset))
+
+    def _get_property(self, name):
+        return getattr(self, '_' + name)
+
+    def _set_property(self, name, value, ctx=None):
+        field_def = self.__config_properties__[name]
+        if ctx is None:
+            ctx = InitContext(raise_exceptions=True)
+
+        constructed_val = field_def.construct(value, ctx)
+        if constructed_val is None:
+            constructed_val = field_def.default()
+
+        setattr(self, '_' + name, constructed_val)
 
     @staticmethod
     def _get_ctx(kwargs):
@@ -301,10 +319,9 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
 
     def _to_builtin(self):
         def to_dict_generator():
-            for k, v in self.__dict__.items():
-                if k in self.__config_fields__:
-                    validable = self.__config_fields__[k]
-                    yield k, validable.to_builtin(v)
+            for prop_name, definiton in self.__config_properties__.items():
+                prop_value = self._get_property(prop_name)
+                yield prop_name, definiton.to_builtin(prop_value)
 
         return {k: v for k, v in to_dict_generator()}
 
@@ -332,16 +349,18 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
         if type(self) != type(other):
             return False
 
-        for attr in self.__config_fields__:
-            if not isinstance(self.__dict__[attr],
-                              type(other.__dict__[attr])) or \
-                not isinstance(other.__dict__[attr],
-                               type(self.__dict__[attr])):
+        for prop_name in self.__config_properties__.keys():
+            self_prop = getattr(self, '_'+prop_name)
+            other_prop = getattr(other, '_'+prop_name)
+            if not isinstance(self_prop,
+                              type(other_prop)) or \
+                not isinstance(other_prop,
+                               type(self_prop)):
                 return False
-            if isinstance(self.__dict__[attr], np.ndarray):
-                if not np.all(self.__dict__[attr] == self.__dict__[attr]):
+            if isinstance(self_prop, np.ndarray):
+                if not np.all(self_prop == self_prop):
                     return False
-            elif self.__dict__[attr] != other.__dict__[attr]:
+            elif self_prop != other_prop:
                 return False
 
         return True

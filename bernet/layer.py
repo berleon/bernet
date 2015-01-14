@@ -79,7 +79,15 @@ class Parameter(ConfigObject):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.tensor = theano.shared(kwargs.get("tensor", None), name=self.name)
+
+    def _set_property(self, name, value, ctx=None):
+        super()._set_property(name, value, ctx=ctx)
+        if name == "tensor" and self.tensor is not None:
+            self._shared = theano.shared(self.tensor, name=self.name)
+
+    @property
+    def shared(self):
+        return self._shared
 
 
 class NotConnectedException(Exception):
@@ -154,9 +162,7 @@ class Layer(ConfigObject):
 
     def fill_parameters(self):
         for p in self.parameters:
-            p.tensor = T.as_tensor_variable(
-                p.filler.fill(self.parameter_shape(p)),
-                p.name)
+            p.tensor = p.filler.fill(self.parameter_shape(p))
 
     def set_parameter(self, name, nparray):
         self.parameters[name].tensor = nparray
@@ -302,13 +308,13 @@ class ConvolutionLayer(Layer):
         conv_out = T.nnet.conv2d(
             input=inputs["in"],
             image_shape=self.input_shapes["in"],
-            filters=self.weight.tensor,
+            filters=self.weight.shared,
             filter_shape=self.filter_shape(),
             subsample=(self.stride_h, self.stride_v),
             border_mode=self.border_mode,
         )
 
-        return conv_out + self.bias.tensor.dimshuffle('x', 0, 'x', 'x')
+        return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
 
 class Shape(REPEAT):
