@@ -96,8 +96,8 @@ class NotConnectedException(Exception):
 
 class Layer(ConfigObject):
     name = REQUIRED(str)
-    type = EITHER("ConvLayer", "FCLayer", "TanhLayer", "SoftmaxLayer",
-                  "ReLULayer")
+    type = EITHER("ConvLayer", "FCLayer", "TanHLayer", "SoftmaxLayer",
+                  "SigmoidLayer", "ReLULayer", "DummyDataLayer")
 
     parameters = REPEAT(Parameter)
 
@@ -110,6 +110,7 @@ class Layer(ConfigObject):
         super().__init__(**kwargs)
         self._connected = False
         self.input_shapes = {}
+        self._update_connection_status()
 
     def input_ports(self):
         return "in",
@@ -318,15 +319,23 @@ class ConvolutionLayer(Layer):
 
 
 class Shape(REPEAT):
-    def __init__(self, **kwargs):
+    # the total maximum allowed dimensions are
+    # (batch size, channels, height, width)
+    MAX_DIMS = 4
+
+    def __init__(self, max_dims: int=MAX_DIMS):
         super().__init__(int)
+        self.max_dims = max_dims
+        if self.max_dims > self.MAX_DIMS:
+            raise ValueError("The maximum number of dimension is {:}."
+                             .format(self.MAX_DIMS))
 
     def _construct(self, value, ctx):
         constr_list = super()._construct(value, ctx)
-        if len(constr_list) > 4:
+        if len(constr_list) > self.max_dims:
             ctx.error("Shape '{:}' has a dimension of '{:}'. The maximum"
-                      " allowed dimension is 4."
-                      .format(constr_list, len(constr_list)))
+                      " allowed dimension is {:}."
+                      .format(constr_list, len(constr_list), self.max_dims))
 
         if len(constr_list) == 0:
             ctx.error("Shape needs at least one element.")
@@ -334,4 +343,46 @@ class Shape(REPEAT):
             if elem <= 0:
                 ctx.error("Shape must be strictly positive.")
 
-        return (1,) * (4-len(constr_list)) + tuple(constr_list)
+        return (1,) * (self.max_dims-len(constr_list)) + tuple(constr_list)
+
+
+# ---------------------------- Source Layers ----------------------------------
+
+
+class DataSourceLayer(Layer):
+    shape = REQUIRED(Shape())
+
+    def _output_shapes(self):
+        return {"out": self.shape}
+
+    def input_ports(self):
+        return ()
+
+
+class DummyDataLayer(DataSourceLayer):
+    filler = OPTIONAL(Filler, default=GaussianFiller())
+
+    def _outputs(self, inputs):
+        return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
+
+
+# ------------------------- Activation Layers ---------------------------------
+
+
+class ActivationLayer(Layer):
+    pass
+
+
+class SigmoidLayer(ActivationLayer):
+    def _outputs(self, inputs):
+        return T.nnet.sigmoid(inputs["in"])
+
+
+class ReLULayer(ActivationLayer):
+    def _outputs(self, inputs):
+        return T.clip(inputs["in"], 0, np.infty)
+
+
+class TanHLayer(ActivationLayer):
+    def _outputs(self, inputs):
+        return T.tanh(inputs["in"])
