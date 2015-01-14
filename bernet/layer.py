@@ -323,8 +323,9 @@ class Shape(REPEAT):
     # (batch size, channels, height, width)
     MAX_DIMS = 4
 
-    def __init__(self, max_dims: int=MAX_DIMS):
+    def __init__(self, dims: int=None, max_dims: int=MAX_DIMS):
         super().__init__(int)
+        self.dims = dims
         self.max_dims = max_dims
         if self.max_dims > self.MAX_DIMS:
             raise ValueError("The maximum number of dimension is {:}."
@@ -332,7 +333,14 @@ class Shape(REPEAT):
 
     def _construct(self, value, ctx):
         constr_list = super()._construct(value, ctx)
-        if len(constr_list) > self.max_dims:
+        dims = len(constr_list)
+
+        if self.dims is not None and self.dims != dims:
+            ctx.error("A dimension of '{:}' is required. "
+                      "Got '{:}' with a dimension of '{:}'"
+                      .format(self.dims, constr_list, dims))
+
+        if dims > self.max_dims:
             ctx.error("Shape '{:}' has a dimension of '{:}'. The maximum"
                       " allowed dimension is {:}."
                       .format(constr_list, len(constr_list), self.max_dims))

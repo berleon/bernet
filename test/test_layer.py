@@ -181,6 +181,27 @@ class TestShape(TestCase):
             [5, 2, 3, 4, 4],
             ctx=InitContext(raise_exceptions=True))
 
+    def test_max_dims(self):
+        s = Shape(max_dims=2)
+        self.assert_(s.valid([1, 4]))
+        self.assert_(s.valid([4]))
+        self.assert_(not s.valid([2, 3, 4]))
+        self.assert_(not s.valid([2, 3, 4, 4]))
+        self.assert_(not s.valid([5, 2, 3, 4, 4]))
+        self.assert_(not s.valid([0, 0]))
+        self.assert_(not s.valid([]))
+
+    def test_dims(self):
+        s = Shape(dims=2)
+        self.assert_(s.valid([1, 4]))
+        self.assert_(s.valid([9, 44]))
+        self.assert_(not s.valid([4]))
+        self.assert_(not s.valid([2, 3, 4]))
+        self.assert_(not s.valid([2, 3, 4, 4]))
+        self.assert_(not s.valid([5, 2, 3, 4, 4]))
+        self.assert_(not s.valid([0, 0]))
+        self.assert_(not s.valid([]))
+
 
 class TestConvolutionLayer(TestCase):
     def setUp(self):
