@@ -109,7 +109,6 @@ class Parameter(ConfigObject):
     name = REQUIRED(str)
     shape = REPEAT(int)
     filler = OPTIONAL(Filler, default=GaussianFiller(mean=0., std=1.))
-    type = EITHER("weight", "bias")
     learning_rate = OPTIONAL(float, default=1.)
     weight_decay = OPTIONAL(float, default=1.)
     tensor = OPTIONAL(np.ndarray)
@@ -136,8 +135,6 @@ class Layer(ConfigObject):
     type = EITHER("ConvLayer", "FCLayer", "TanHLayer", "SoftmaxLayer",
                   "SigmoidLayer", "ReLULayer", "DummyDataLayer",
                   "PoolingLayer")
-
-    parameters = REPEAT(Parameter)
 
     def __init__(self, **kwargs):
         """
@@ -186,29 +183,6 @@ class Layer(ConfigObject):
 
     def copy_disconnected(self):
         raise NotImplementedError
-
-    def parameter_shape(self, param: 'Parameter|str'):
-        self._assert_connected()
-        if type(param) == str:
-            fitting_params = [p for p in self.parameters if p.name == param]
-            assert len(fitting_params) == 1
-            param = fitting_params[0]
-
-        return self._parameter_shape(param)
-
-    def _parameter_shape(self, param: Parameter):
-        raise NotImplementedError("Please use a subclass of Layer")
-
-    def fill_parameters(self):
-        for p in self.parameters:
-            p.tensor = p.filler.fill(self.parameter_shape(p))
-
-    def set_parameter(self, name, nparray):
-        self.parameters[name].tensor = nparray
-
-    def loss(self):
-        self._assert_connected()
-        return 0
 
     def outputs(self, inputs: '{str: symbolic tensor}'):
         """
@@ -275,7 +249,36 @@ class Layer(ConfigObject):
                            self.input_ports()))
 
 
-class ConvolutionLayer(Layer):
+class WithParameterLayer(Layer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.parameters = []
+
+    def parameter_shape(self, param: 'Parameter|str'):
+        self._assert_connected()
+        if type(param) == str:
+            fitting_params = [p for p in self.parameters if p.name == param]
+            assert len(fitting_params) == 1
+            param = fitting_params[0]
+
+        return self._parameter_shape(param)
+
+    def _parameter_shape(self, param: Parameter):
+        raise NotImplementedError("Please use a subclass of Layer")
+
+    def fill_parameters(self):
+        for p in self.parameters:
+            p.tensor = p.filler.fill(self.parameter_shape(p))
+
+    def loss(self):
+        self._assert_connected()
+        return T.as_tensor_variable(0)
+
+
+class ConvolutionLayer(WithParameterLayer):
+    weight = REQUIRED(Parameter)
+    bias = REQUIRED(Parameter)
+
     num_feature_maps = REQUIRED(int)
 
     # kernel width
@@ -294,11 +297,7 @@ class ConvolutionLayer(Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        for p in self.parameters:
-            if p.type == "weight":
-                self.weight = p
-            elif p.type == "bias":
-                self.bias = p
+        self.parameters = [self.bias, self.weight]
 
     def _parameter_shape(self, param):
         if param == self.weight:
