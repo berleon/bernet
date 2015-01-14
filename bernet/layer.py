@@ -378,7 +378,8 @@ class DummyDataLayer(DataSourceLayer):
 
 
 class ActivationLayer(Layer):
-    pass
+    def _output_shapes(self):
+        return {"out": self.input_shapes["in"]}
 
 
 class SigmoidLayer(ActivationLayer):

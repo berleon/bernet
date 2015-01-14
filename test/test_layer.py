@@ -331,9 +331,14 @@ class TestConvolutionLayer(TestCase):
             layer_life_cycle(self, l, input_shapes={"in": (1, 3, 32, 32)})
 
 
+def create_layer(layer_class, **kwargs):
+        return layer_class(name=layer_class.__name__ + "_test",
+                           type=layer_class.__name__, **kwargs)
+
+
 class TestActivationLayers(TestCase):
     def setUp(self):
-        self.layers = [
+        self.layer_classes = [
             SigmoidLayer,
             TanHLayer,
             ReLULayer,
@@ -343,9 +348,8 @@ class TestActivationLayers(TestCase):
         dummy = DummyDataLayer(name="dummy", type="DummyDataLayer",
                                shape=(1, 3, 16, 16))
 
-        for layer_class in self.layers:
-            layer = layer_class(name=layer_class.__name__ + "_test",
-                                type=layer_class.__name__)
+        for layer_class in self.layer_classes:
+            layer = create_layer(layer_class)
 
             layer.set_input_shapes({"in": dummy.output_shape("out")})
             dummy_out = dummy.outputs({})["out"]
@@ -353,3 +357,7 @@ class TestActivationLayers(TestCase):
             f = theano.function([], [dummy_out, out])
             dummpy_out_real, out_real = f()
             self.assertEqual(dummpy_out_real.shape, out_real.shape)
+
+    def test_life_cycle(self):
+        for layer_cls in self.layer_classes:
+            layer_life_cycle(self, create_layer(layer_cls))
