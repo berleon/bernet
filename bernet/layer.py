@@ -69,6 +69,42 @@ class GaussianFiller(Filler):
         return param
 
 
+class Shape(REPEAT):
+    # the total maximum allowed dimensions are
+    # (batch size, channels, height, width)
+    MAX_DIMS = 4
+
+    def __init__(self, dims: int=None, max_dims: int=MAX_DIMS):
+        super().__init__(int)
+        self.dims = dims
+        self.max_dims = max_dims
+        if self.max_dims > self.MAX_DIMS:
+            raise ValueError("The maximum number of dimension is {:}."
+                             .format(self.MAX_DIMS))
+
+    def _construct(self, value, ctx):
+        constr_list = super()._construct(value, ctx)
+        dims = len(constr_list)
+
+        if self.dims is not None and self.dims != dims:
+            ctx.error("A dimension of '{:}' is required. "
+                      "Got '{:}' with a dimension of '{:}'"
+                      .format(self.dims, constr_list, dims))
+
+        if dims > self.max_dims:
+            ctx.error("Shape '{:}' has a dimension of '{:}'. The maximum"
+                      " allowed dimension is {:}."
+                      .format(constr_list, len(constr_list), self.max_dims))
+
+        if len(constr_list) == 0:
+            ctx.error("Shape needs at least one element.")
+        for elem in constr_list:
+            if elem <= 0:
+                ctx.error("Shape must be strictly positive.")
+
+        return (1,) * (self.max_dims-len(constr_list)) + tuple(constr_list)
+
+
 class Parameter(ConfigObject):
     name = REQUIRED(str)
     shape = REPEAT(int)
@@ -318,42 +354,6 @@ class ConvolutionLayer(Layer):
         )
 
         return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
-
-
-class Shape(REPEAT):
-    # the total maximum allowed dimensions are
-    # (batch size, channels, height, width)
-    MAX_DIMS = 4
-
-    def __init__(self, dims: int=None, max_dims: int=MAX_DIMS):
-        super().__init__(int)
-        self.dims = dims
-        self.max_dims = max_dims
-        if self.max_dims > self.MAX_DIMS:
-            raise ValueError("The maximum number of dimension is {:}."
-                             .format(self.MAX_DIMS))
-
-    def _construct(self, value, ctx):
-        constr_list = super()._construct(value, ctx)
-        dims = len(constr_list)
-
-        if self.dims is not None and self.dims != dims:
-            ctx.error("A dimension of '{:}' is required. "
-                      "Got '{:}' with a dimension of '{:}'"
-                      .format(self.dims, constr_list, dims))
-
-        if dims > self.max_dims:
-            ctx.error("Shape '{:}' has a dimension of '{:}'. The maximum"
-                      " allowed dimension is {:}."
-                      .format(constr_list, len(constr_list), self.max_dims))
-
-        if len(constr_list) == 0:
-            ctx.error("Shape needs at least one element.")
-        for elem in constr_list:
-            if elem <= 0:
-                ctx.error("Shape must be strictly positive.")
-
-        return (1,) * (self.max_dims-len(constr_list)) + tuple(constr_list)
 
 
 class PoolingLayer(Layer):
