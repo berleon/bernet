@@ -370,6 +370,36 @@ class ConvolutionLayer(WithParameterLayer):
         return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
 
+class InnerProductLayer(WithParameterLayer):
+    n_units = REQUIRED(int)
+    weight = REQUIRED(Parameter)
+    bias = REQUIRED(Parameter)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.parameters = [self.weight, self.bias]
+
+    def _parameter_shape(self, param: Parameter):
+        self._assert_connected()
+        shp = self.input_shapes["in"]
+        in_size = chans(shp)*h(shp)*w(shp)
+        if param == self.weight:
+            return in_size, self.n_units
+        elif param == self.bias:
+            return self.n_units,
+
+    def _expected_shape(self, in_port):
+        shp = self.input_shapes["in"]
+        return bs(shp), chans(shp)*h(shp)*w(shp)
+
+    def _output_shapes(self):
+        batch_size = bs(self.input_shapes)
+        return {"out": (batch_size, self.n_units)}
+
+    def _outputs(self, inputs):
+        return T.dot(inputs["in"], self.weight.shared) + self.bias.shared
+
+
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
     ignore_border = OPTIONAL(bool, default=False)

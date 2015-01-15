@@ -434,3 +434,13 @@ class TestPoolingLayer(TestCase):
                 ExampleLifeCycle(
                     layer, self,  input_shapes={"in": input_shape}
                 ).simulate()
+
+
+class TestInnerProductLayer(TestCase):
+    def test_life_cycle(self):
+        layer = InnerProductLayer(name="innerprod", type="FCLayer",
+                                  n_units=20,
+                                  weight=Parameter(name="weight"),
+                                  bias=Parameter(name="bias"))
+
+        WithParameterExampleLifeCycle(layer, self).simulate()
