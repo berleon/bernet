@@ -281,6 +281,7 @@ class WithParameterLayer(Layer):
         raise NotImplementedError("Please use a subclass of Layer")
 
     def fill_parameters(self):
+        self._assert_connected()
         for p in self.parameters:
             p.tensor = p.filler.fill(self.parameter_shape(p))
 
