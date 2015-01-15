@@ -193,7 +193,10 @@ class Layer(ConfigObject):
             if l not in inputs:
                 raise KeyError("Expected a symbolic tensor variable for input"
                                " port `{!s}`.".format(l))
-        out = self._outputs(inputs)
+        reshaped_inputs = {port: self._reshape(port, sym_tensor)
+                           for port, sym_tensor in inputs.items()}
+
+        out = self._outputs(reshaped_inputs)
         if type(out) is not dict:
             assert len(self.output_ports()) == 1
             return {self.output_ports()[0]: out}
@@ -217,6 +220,17 @@ class Layer(ConfigObject):
                 "exactly one output channel."
             port = self.output_ports()[0]
         return self.output_shapes()[port]
+
+    def _reshape(self, in_port, sym_tensor):
+        expected = self._expected_shape(in_port)
+        if expected == self.input_shapes[in_port]:
+            return sym_tensor
+        else:
+            return sym_tensor.reshape(expected)
+
+    def _expected_shape(self, in_port):
+        self._assert_connected()
+        return self.input_shapes[in_port]
 
     def _not_satisfied_input_ports(self, given_ports):
         return list(filter(lambda l: l not in given_ports,
