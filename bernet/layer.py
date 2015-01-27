@@ -263,6 +263,21 @@ class Layer(ConfigObject):
                            self.input_ports()))
 
 
+class OneInOneOutLayer(Layer):
+    @property
+    def input_shape(self):
+        return self.input_shapes["in"]
+
+    def output(self, input):
+        return self.outputs({"in": input})["out"]
+
+    def input_ports(self):
+        return "in",
+
+    def output_ports(self):
+        return "out",
+
+
 class WithParameterLayer(Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -290,7 +305,7 @@ class WithParameterLayer(Layer):
         return T.as_tensor_variable(0)
 
 
-class ConvolutionLayer(WithParameterLayer):
+class ConvolutionLayer(WithParameterLayer, OneInOneOutLayer):
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
 
@@ -370,6 +385,10 @@ class ConvolutionLayer(WithParameterLayer):
         return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
 
+def _to_2d_shape(shp):
+    return bs(shp), chans(shp)*h(shp)*w(shp)
+
+
 class InnerProductLayer(WithParameterLayer):
     n_units = REQUIRED(int)
     weight = REQUIRED(Parameter)
@@ -389,8 +408,7 @@ class InnerProductLayer(WithParameterLayer):
             return self.n_units,
 
     def _expected_shape(self, in_port):
-        shp = self.input_shapes["in"]
-        return bs(shp), chans(shp)*h(shp)*w(shp)
+        return _to_2d_shape(self.input_shapes['in'])
 
     def _output_shapes(self):
         batch_size = bs(self.input_shapes)
@@ -449,7 +467,7 @@ class DummyDataLayer(DataSourceLayer):
 # ------------------------- Activation Layers ---------------------------------
 
 
-class ActivationLayer(Layer):
+class ActivationLayer(OneInOneOutLayer):
     def _output_shapes(self):
         return {"out": self.input_shapes["in"]}
 
