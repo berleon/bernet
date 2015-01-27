@@ -394,22 +394,23 @@ class TestActivationLayers(TestCase):
             SigmoidLayer,
             TanHLayer,
             ReLULayer,
-            # SoftmaxLayer,
+            SoftmaxLayer,
         ]
 
     def test_simple_computation(self):
         dummy = DummyDataLayer(name="dummy", type="DummyDataLayer",
                                shape=(1, 3, 16, 16))
-
         for layer_class in self.layer_classes:
             layer = create_layer(layer_class)
 
-            layer.set_input_shapes({"in": dummy.output_shapes()["out"]})
+            layer.set_input_shape(dummy.output_shapes()["out"])
             dummy_out = dummy.outputs({})["out"]
-            out = layer.outputs({"in": dummy_out})["out"]
+            out = layer.output(dummy_out)
             f = theano.function([], [dummy_out, out])
             dummpy_out_real, out_real = f()
-            self.assertEqual(dummpy_out_real.shape, out_real.shape)
+            self.assertEqual(dummpy_out_real.shape,
+                             dummy.output_shapes()["out"])
+            self.assertEqual(out_real.shape, layer.output_shape())
 
     def test_life_cycle(self):
         for layer_cls in self.layer_classes:

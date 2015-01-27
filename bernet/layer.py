@@ -256,6 +256,9 @@ class Layer(ConfigObject):
 
 
 class OneInOneOutLayer(Layer):
+    def set_input_shape(self, input_shape):
+        self.set_input_shapes({"in": input_shape})
+
     @property
     def input_shape(self):
         return self.input_shapes["in"]
@@ -464,7 +467,7 @@ class DummyDataLayer(DataSourceLayer):
 
 class ActivationLayer(OneInOneOutLayer):
     def _output_shapes(self):
-        return {"out": self.input_shapes["in"]}
+        return {"out": self._expected_shape("in")}
 
 
 class SigmoidLayer(ActivationLayer):
@@ -480,3 +483,11 @@ class ReLULayer(ActivationLayer):
 class TanHLayer(ActivationLayer):
     def _outputs(self, inputs):
         return T.tanh(inputs["in"])
+
+
+class SoftmaxLayer(ActivationLayer):
+    def _expected_shape(self, in_port):
+        return _to_2d_shape(self.input_shape)
+
+    def _outputs(self, inputs):
+        return T.nnet.softmax(inputs["in"])
