@@ -153,7 +153,7 @@ class TestLayer(TestCase):
         # default state is to be not connected.
         self.assertFalse(l._connected)
         # All this functions are only callable, if the layer is connected.
-        self.assertRaises(NotConnectedException, l.output_shape)
+        self.assertRaises(NotConnectedException, l.output_shapes)
         self.assertRaises(NotConnectedException, l.clear_connections)
         self.assertRaises(NotConnectedException, l.outputs, {})
 
@@ -164,7 +164,7 @@ class TestLayer(TestCase):
 
         self.assertRaises(KeyError, l.outputs, {})
         self.assertNotImplemented(l.outputs, {"in": []})
-        self.assertNotImplemented(l.output_shape, "out")
+        self.assertNotImplemented(l.output_shapes)
 
     def assertNotImplemented(self, callable, *args, **kwargs):
         self.assertRaisesRegex(
@@ -339,7 +339,7 @@ class TestConvolutionLayer(TestCase):
         input_shape = (32, 3, 128, 128)
         conv.set_input_shapes({"in": input_shape})
         self.assertEqual(
-            conv.output_shape("out"),
+            conv.output_shape(),
             (32, conv.num_feature_maps,
              128-conv.kernel_h+1, 128-conv.kernel_w+1))
         conv.clear_connections()
@@ -359,7 +359,7 @@ class TestConvolutionLayer(TestCase):
                 x = theano.shared(GaussianFiller().fill(input_shape))
                 conv_out = conv.outputs({"in": x})
                 f = theano.function([], conv_out["out"])
-                expected_output_shape = conv.output_shape("out")
+                expected_output_shape = conv.output_shape()
 
                 self.assertEqual(f().shape,
                                  expected_output_shape,
@@ -394,6 +394,7 @@ class TestActivationLayers(TestCase):
             SigmoidLayer,
             TanHLayer,
             ReLULayer,
+            # SoftmaxLayer,
         ]
 
     def test_simple_computation(self):
@@ -403,7 +404,7 @@ class TestActivationLayers(TestCase):
         for layer_class in self.layer_classes:
             layer = create_layer(layer_class)
 
-            layer.set_input_shapes({"in": dummy.output_shape("out")})
+            layer.set_input_shapes({"in": dummy.output_shapes()["out"]})
             dummy_out = dummy.outputs({})["out"]
             out = layer.outputs({"in": dummy_out})["out"]
             f = theano.function([], [dummy_out, out])

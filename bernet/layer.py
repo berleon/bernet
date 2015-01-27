@@ -213,14 +213,6 @@ class Layer(ConfigObject):
     def _output_shapes(self):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def output_shape(self, port=None):
-        if port is None:
-            assert len(self.output_ports()) == 1,\
-                "None is only acceptable if there is " \
-                "exactly one output channel."
-            port = self.output_ports()[0]
-        return self.output_shapes()[port]
-
     def _reshape(self, in_port, sym_tensor):
         expected = self._expected_shape(in_port)
         if expected == self.input_shapes[in_port]:
@@ -267,6 +259,9 @@ class OneInOneOutLayer(Layer):
     @property
     def input_shape(self):
         return self.input_shapes["in"]
+
+    def output_shape(self):
+        return self.output_shapes()["out"]
 
     def output(self, input):
         return self.outputs({"in": input})["out"]
