@@ -446,3 +446,31 @@ class TestInnerProductLayer(TestCase):
                                   bias=Parameter(name="bias"))
 
         WithParameterExampleLifeCycle(layer, self).simulate()
+
+
+class TestConnectionParser(TestCase):
+    def test_parse_layer(self):
+        con_parse = ConnectionsParser()
+        con_parse.ctx = InitContext(raise_exceptions=True)
+        self.assertRaises(ConfigException, con_parse._parse_layer, "")
+        self.assertRaises(ConfigException, con_parse._parse_layer, "ba dfa df")
+        self.assertRaises(ConfigException, con_parse._parse_layer,
+                          "[in] layer [out]")
+        self.assertRaises(ConfigException, con_parse._parse_layer,
+                          "bla [in]layer[out]")
+
+        self.assertTupleEqual(con_parse._parse_layer("conv"),
+                              (None, "conv", None))
+
+        self.assertTupleEqual(con_parse._parse_layer("[in]layer_name[out]"),
+                              ("in", "layer_name", "out"))
+
+        self.assertTupleEqual(con_parse._parse_layer("layer_name[foo]"),
+                              (None, "layer_name", "foo"))
+
+        self.assertTupleEqual(con_parse._parse_layer("[in]layer_name[out]"),
+                              ("in", "layer_name", "out"))
+
+        # layer names with special signs are permitted
+        self.assertTupleEqual(con_parse._parse_layer("layer_name_123#$"),
+                              (None, "layer_name_123#$", None))

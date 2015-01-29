@@ -491,3 +491,54 @@ class SoftmaxLayer(ActivationLayer):
 
     def _outputs(self, inputs):
         return T.nnet.softmax(inputs["in"])
+
+
+# ----------------------------- Connection ------------------------------------
+
+
+class ConnectionsParser(object):
+    # `in_port` and `out_port` are optional
+    # [in_port]layer_name[out_port]
+    layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
+                             .format('([^\]\s]+)'))
+
+    def __init__(self):
+        self.ctx = None
+
+    def _parse_layer(self, string):
+        match = self.layer_regex.match(string)
+        if match is None:
+            self.ctx.error("Could not parse Connection `{:}`".format(string))
+        grps = match.groups()
+        return grps[1], grps[2], grps[4]
+
+    def _parse_connection(self, start_token, end_token):
+        _from = self._parse_layer(start_token)
+        to = self._parse_layer(end_token)
+        return Connection(from_name=_from[1],
+                          from_port=_from[2],
+                          to_name=to[1],
+                          to_port=to[2])
+
+    def _parse_connections(self, string):
+        tokens = string.split("->")
+        for start, end in zip(tokens[:-1], tokens[1:]):
+            yield self._parse_connection(start, end)
+
+    def construct(self, value, ctx=None):
+        self.ctx = ctx
+        if type(value) == str:
+            self._parse_connections(value)
+        elif type(value) == Connection:
+            return value
+        elif type(value) == dict:
+            return Connection(**value)
+        else:
+            pass  # TODO: error
+
+
+class Connection(ConfigObject):
+    from_name = REQUIRED(str)
+    from_port = REQUIRED(str)
+    to_name = REQUIRED(str)
+    to_port = REQUIRED(str)
