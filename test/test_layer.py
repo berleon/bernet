@@ -474,3 +474,49 @@ class TestConnectionParser(TestCase):
         # layer names with special signs are permitted
         self.assertTupleEqual(con_parse._parse_layer("layer_name_123#$"),
                               (None, "layer_name_123#$", None))
+
+    def test_parse_connection(self):
+        con_parse = ConnectionsParser()
+        con_parse.ctx = InitContext(raise_exceptions=True)
+
+        self.assertEqual(
+            con_parse._parse_connection("from_layer", "to_layer"),
+            Connection(from_name="from_layer", to_name="to_layer"))
+
+        self.assertEqual(con_parse._parse_connection("from_layer[out1]",
+                                                     "[in]to_layer"),
+                         Connection(
+                             from_name="from_layer",
+                             from_port="out1",
+                             to_name="to_layer",
+                             to_port="in"))
+
+    def test_construct(self):
+        con_parse = ConnectionsParser()
+        con_parse.ctx = InitContext(raise_exceptions=True)
+        self.assertListEqual(
+            con_parse.construct("layer1 -> layer2 -> layer3"),
+            [Connection(from_name="layer1", to_name="layer2"),
+             Connection(from_name="layer2", to_name="layer3")]
+        )
+
+        self.assertListEqual(
+            con_parse.construct(
+                "layer1[45] -> [in]layer2[out2] -> layer3[bla]"),
+            [
+                Connection(from_name="layer1", from_port="45",
+                           to_name="layer2", to_port="in"),
+                Connection(from_name="layer2", from_port="out2",
+                           to_name="layer3")
+            ]
+        )
+
+        self.assertEqual(con_parse.construct(
+            [Connection(from_name="layer1", to_name="layer2"),
+             {'from_name': 'layer2', 'to_name': 'layer3'}]),
+            [Connection(from_name="layer1", to_name="layer2"),
+             Connection(from_name="layer2", to_name="layer3")])
+
+        self.assertRaises(ConfigException, con_parse.construct({}))
+        self.assertRaises(ConfigException, con_parse.construct(
+            Connection(from_name="layer1", to_name="layer2")))

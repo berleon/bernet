@@ -496,7 +496,7 @@ class SoftmaxLayer(ActivationLayer):
 # ----------------------------- Connection ------------------------------------
 
 
-class ConnectionsParser(object):
+class ConnectionsParser(ConfigField):
     # `in_port` and `out_port` are optional
     # [in_port]layer_name[out_port]
     layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
@@ -518,27 +518,34 @@ class ConnectionsParser(object):
         return Connection(from_name=_from[1],
                           from_port=_from[2],
                           to_name=to[1],
-                          to_port=to[2])
+                          to_port=to[0])
 
     def _parse_connections(self, string):
         tokens = string.split("->")
         for start, end in zip(tokens[:-1], tokens[1:]):
             yield self._parse_connection(start, end)
 
-    def construct(self, value, ctx=None):
+    def _construct(self, value, ctx):
         self.ctx = ctx
         if type(value) == str:
-            self._parse_connections(value)
-        elif type(value) == Connection:
-            return value
-        elif type(value) == dict:
-            return Connection(**value)
+            return list(self._parse_connections(value))
+        elif type(value) == list:
+            ret_list = []
+            for item in value:
+                if type(item) == Connection:
+                    ret_list.append(item)
+                elif type(item) == dict:
+                    ret_list.append(Connection(**item))
+                else:
+                    ctx.error("Cannot parse connection from value `{:}`"
+                              .format(value))
+            return ret_list
         else:
-            pass  # TODO: error
+            ctx.error("Expected str or list, but got type `{:}`".format(value))
 
 
 class Connection(ConfigObject):
     from_name = REQUIRED(str)
-    from_port = REQUIRED(str)
+    from_port = OPTIONAL(str)
     to_name = REQUIRED(str)
-    to_port = REQUIRED(str)
+    to_port = OPTIONAL(str)
