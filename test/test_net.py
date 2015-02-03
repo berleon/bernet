@@ -16,12 +16,14 @@ import tempfile
 from unittest import TestCase
 
 import numpy as np
+import re
 
 from bernet import utils
 
 from bernet.net import Network
 from bernet.layer import ConvolutionLayer, SoftmaxLayer, ReLULayer, TanHLayer, \
     Connection
+from bernet.config import ConfigException
 
 
 class TestNetwork(TestCase):
@@ -71,6 +73,19 @@ class TestNetwork(TestCase):
         net = self.simple_network
         self.assertDictEqual(net.input_layers_labels, {"relu": ["in"]})
         self.assertDictEqual(net.output_layers_labels, {"tanh": ["out"]})
+
+    def test_multiple_taken_input_port_throws_exception(self):
+        self.assertRaisesRegexp(
+            ConfigException,
+            re.escape("Layer `softmax` has multiple connections for input port"
+                      " `in`. The connections are from: "
+                      "`relu[out]`, `tanh[out]`."),
+            Network,
+            name="test",
+            layers=[self.relu, self.softmax, self.tanh],
+            connections=[Connection(from_name="relu", to_name="softmax"),
+                         Connection(from_name="tanh", to_name="softmax")]
+        )
 
     def test_check_sha256sum(self):
         with tempfile.NamedTemporaryFile("w+b") as f:

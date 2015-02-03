@@ -32,9 +32,9 @@ class Network(ConfigObject):
 
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
-        ctx = self._get_ctx(kwargs)
+        self.ctx = self._get_ctx(kwargs)
         if self.data_url is not None and self.data_sha256 is None:
-            ctx.error("Field data_url required data_sha256 to be set")
+            self.ctx.error("Field data_url required data_sha256 to be set")
             return
 
         if self.data_url is not None:
@@ -88,9 +88,18 @@ class Network(ConfigObject):
     def _check_connections(self, layer):
         connected_to_port = [c.to_port for c in self._connections_to(layer)]
 
-        for in_port in layer.input_ports():
-            if in_port in connected_to_port:
-                assert connected_to_port.count(in_port) == 1
+        for layer_in_port in layer.input_ports():
+            if layer_in_port in connected_to_port:
+                if connected_to_port.count(layer_in_port) > 1:
+                    connections = [c for c in self._connections_to(layer)
+                                   if c.to_port == layer_in_port]
+                    _from = ["`{:}[{:}]`".format(c.from_name, c.from_port)
+                             for c in connections]
+                    self.ctx.error("Layer `{:}` has multiple connections for "
+                                   "input port `{:}`. "
+                                   "The connections are from: {:}."
+                                   .format(layer.name, layer_in_port,
+                                           ", ".join(_from)))
 
     def _add_layers_to_connections(self):
         for layer in self.layers:
