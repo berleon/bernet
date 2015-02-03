@@ -130,11 +130,16 @@ class NotConnectedException(Exception):
     pass
 
 
+def layer_type(cls):
+    """Returns the type of the layer class.
+     For Example layer_type(ConvLayer) will return \"Conv\""""
+    return cls.__name__.rstrip("Layer")
+
+
 class Layer(ConfigObject):
     name = REQUIRED(str)
-    type = EITHER("ConvLayer", "FCLayer", "TanHLayer", "SoftmaxLayer",
-                  "SigmoidLayer", "ReLULayer", "DummyDataLayer",
-                  "PoolingLayer")
+    type = EITHER("Conv", "InnerProduct", "TanH", "Softmax", "Sigmoid", "ReLU",
+                  "DummyData", "Pooling")
 
     def __init__(self, **kwargs):
         """
@@ -142,6 +147,8 @@ class Layer(ConfigObject):
             :param options: LayerOption
             :param parameters: list of [..] TODO
             """
+        kwargs["type"] = kwargs.get("type",
+                                    self.__class__.__name__.rstrip("Layer"))
         super().__init__(**kwargs)
         self._connected = False
         self.input_shapes = {}

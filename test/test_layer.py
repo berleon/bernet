@@ -141,7 +141,7 @@ class WithParameterExampleLifeCycle(ExampleLifeCycle):
 class TestLayer(TestCase):
     def setUp(self):
         #                        just some random type to satisfy EITHER
-        self.layer = Layer(type="FCLayer",
+        self.layer = Layer(type="InnerProduct",
                            name="test_layer")
 
     def test_base_function(self):
@@ -283,7 +283,7 @@ class TestConvolutionLayer(TestCase):
             self.conv_layers.append(
                 ConvolutionLayer(
                     name=name,
-                    type="ConvLayer",
+                    type="Conv",
                     num_feature_maps=p[fm],
                     kernel_h=p[kh],
                     kernel_w=p[kw],
@@ -299,7 +299,7 @@ class TestConvolutionLayer(TestCase):
     def test_init(self):
         conv = ConvolutionLayer(
             name="conv#test_init",
-            type="ConvLayer",
+            type="Conv",
             num_feature_maps=20,
             kernel_w=5,
             kernel_h=5,
@@ -307,7 +307,7 @@ class TestConvolutionLayer(TestCase):
             bias=Parameter(name="weight")
         )
         self.assertEqual(conv.name, "conv#test_init")
-        self.assertEqual(conv.type, "ConvLayer")
+        self.assertEqual(conv.type, "Conv")
         self.assertEqual(conv.num_feature_maps, 20)
         self.assertEqual(conv.kernel_w, 5)
         self.assertEqual(conv.kernel_h, 5)
@@ -315,7 +315,7 @@ class TestConvolutionLayer(TestCase):
     def test_parameter_shape(self):
         conv = ConvolutionLayer(
             name="conv#test",
-            type="ConvLayer",
+            type="Conv",
             num_feature_maps=20,
             kernel_w=5,
             kernel_h=5,
@@ -385,7 +385,7 @@ class TestConvolutionLayer(TestCase):
 
 def create_layer(layer_class, **kwargs):
         return layer_class(name=layer_class.__name__ + "_test",
-                           type=layer_class.__name__, **kwargs)
+                           type=layer_type(layer_class), **kwargs)
 
 
 class TestActivationLayers(TestCase):
@@ -398,7 +398,7 @@ class TestActivationLayers(TestCase):
         ]
 
     def test_simple_computation(self):
-        dummy = DummyDataLayer(name="dummy", type="DummyDataLayer",
+        dummy = DummyDataLayer(name="dummy", type="DummyData",
                                shape=(1, 3, 16, 16))
         for layer_class in self.layer_classes:
             layer = create_layer(layer_class)
@@ -440,7 +440,7 @@ class TestPoolingLayer(TestCase):
 
 class TestInnerProductLayer(TestCase):
     def test_life_cycle(self):
-        layer = InnerProductLayer(name="innerprod", type="FCLayer",
+        layer = InnerProductLayer(name="innerprod", type="InnerProduct",
                                   n_units=20,
                                   weight=Parameter(name="weight"),
                                   bias=Parameter(name="bias"))
