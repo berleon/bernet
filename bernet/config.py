@@ -381,3 +381,10 @@ class ConfigObject(object, metaclass=_MetaConfigObject):
                 return False
 
         return True
+
+    def __str__(self):
+        fields = []
+        for name, _ in self.__config_properties__.items():
+            fields.append("{:}={:}".format(name, getattr(self, name)))
+
+        return self.__class__.__name__ + "(" + ",".join(fields) + ")"
