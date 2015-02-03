@@ -66,10 +66,12 @@ class TestREPEAT(TestCase):
         rep = REPEAT(float)
         self.assert_(rep.valid([]))
         self.assert_(rep.valid([2.2]))
-        # float not list of float
+        # float is not a list of float
         self.assertFalse(rep.valid(2.2))
-        # list of ints not list of floats
+        # list of ints is not a list of floats
         self.assertFalse(rep.valid([2, 2]))
+
+        self.assertFalse(rep.valid([(4.5,), 2.3]))
 
     def test_error_handling_list(self):
         self.assertRaises(ConfigException, Company,
