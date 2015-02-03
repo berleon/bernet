@@ -556,3 +556,31 @@ class Connection(ConfigObject):
     from_port = OPTIONAL(str)
     to_name = REQUIRED(str)
     to_port = OPTIONAL(str)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.from_layer = None
+        self.to_layer = None
+
+    def is_part(self, layer):
+        """Returns `True` if `layer` is part of this connection. """
+        return layer.name == self.from_name or layer.name == self.to_name
+
+    def add_layer(self, layer):
+        if self.from_name == layer.name:
+            self._add_from_layer(layer)
+        if self.to_name == layer.name:
+            self._add_to_layer(layer)
+
+    def _add_from_layer(self, layer):
+        self.from_layer = layer
+        if self.from_port is None:
+            assert len(layer.output_ports()) == 1
+            self.from_port = layer.output_ports()[0]
+
+    def _add_to_layer(self, layer):
+        self.to_layer = layer
+        if self.to_port is None:
+            assert len(layer.input_ports()) == 1
+            self.to_port = layer.input_ports()[0]
