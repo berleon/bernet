@@ -127,12 +127,36 @@ class TestEITHER(TestCase):
 
 
 class TestSUBCLASS_OF(TestCase):
+    class Parent(object):
+        def __eq__(self, other):
+            return type(other) == type(self)
+
+    class Son(Parent):
+        pass
+
+    class Doughter(Parent):
+        pass
+
+    class Stepson(Son):
+        pass
+
     def test_subclass_of_exception(self):
         sub = SUBCLASS_OF(Exception)
         self.assert_(sub.valid(ValueError("bla")))
         self.assert_(sub.valid(SyntaxError("bla")))
         self.assert_(sub.valid(Exception()))
         self.assert_(not sub.valid(None))
+
+    def test_subclass_repeated(self):
+        t = TestSUBCLASS_OF
+        rep_sub = REPEAT(SUBCLASS_OF(t.Parent))
+        self.assert_(rep_sub.valid([t.Son(), t.Doughter()]))
+        self.assert_(rep_sub.valid((t.Son(),)))
+        self.assert_(not rep_sub.valid([None]))
+        self.assert_(not rep_sub.valid((t.Doughter, None)))
+
+        self.assertListEqual(rep_sub.construct([t.Doughter(), t.Son()]),
+                             [t.Doughter(), t.Son()])
 
     def test_subclass_error(self):
         sub = SUBCLASS_OF(Exception)
