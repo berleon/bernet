@@ -126,6 +126,26 @@ class TestEITHER(TestCase):
         self.assertRaises(ValueError, EITHER, "right", "right")
 
 
+class TestSUBCLASS_OF(TestCase):
+    def test_subclass_of_exception(self):
+        sub = SUBCLASS_OF(Exception)
+        self.assert_(sub.valid(ValueError("bla")))
+        self.assert_(sub.valid(SyntaxError("bla")))
+        self.assert_(sub.valid(Exception()))
+        self.assert_(not sub.valid(None))
+
+    def test_subclass_error(self):
+        sub = SUBCLASS_OF(Exception)
+        ctx = InitContext(raise_exceptions=True)
+        self.assertRaisesRegex(
+            ConfigException,
+            re.compile('Got value `\w+` of type `\w+`\.'
+                       ' Expected a subclass of `\w+`'),
+            sub.construct,
+            "wrong", ctx
+        )
+
+
 class Person(ConfigObject):
     name = REQUIRED(str)
     sex = EITHER("female", "male", "x")

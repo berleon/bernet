@@ -257,6 +257,23 @@ class REPEAT(ConfigField):
         return [super(REPEAT, self).to_builtin(item) for item in obj]
 
 
+class SUBCLASS_OF(ConfigField):
+    def __init__(self, tpe):
+        if not _is_type(type(tpe)):
+            raise AssertionError("SUBCLASS_OF requires a type. Got `{:}`"
+                                 .format(tpe))
+
+        self.tpe = tpe
+
+    def _construct(self, value, ctx):
+        if issubclass(type(value), self.tpe):
+            return value
+        else:
+            ctx.error("Got value `{:}` of type `{:}`. Expected a subclass of "
+                      "`{:}``"
+                      .format(value, type(value).__name__, self.tpe.__name__))
+
+
 class _MetaConfigObject(type):
     def __new__(cls, clsname, bases, my_fields):
         if bases is not None:
