@@ -15,6 +15,8 @@
 import hashlib
 import tempfile
 from unittest import TestCase
+
+import theano.tensor as T
 from bernet.utils import *
 
 
@@ -49,3 +51,7 @@ class TestUtils(TestCase):
         self.assertEqual(chans((5, 1, 4, 4)), 1)
         self.assertEqual(h((5, 1, 14, 4)), 14)
         self.assertEqual(w((5, 1, 4, 40)), 40)
+
+    def test_tensor_from_shape(self):
+        t = tensor_from_shape("test", (20, 20))
+        self.assertEqual(type(t), type(T.matrix()))

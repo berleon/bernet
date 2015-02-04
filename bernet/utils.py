@@ -16,6 +16,8 @@ import operator
 
 import urllib.request
 from functools import reduce
+import theano
+import theano.tensor as T
 
 
 def download(url: str, file) -> bool:
@@ -86,3 +88,9 @@ def size(shape):
     """:return the total number of elements.
     E.g. `size((2, 20, 10))` would be `2*20*10 = 400`"""
     return reduce(operator.mul, shape, 1)
+
+
+def tensor_from_shape(name, shp):
+    floatX = theano.config.floatX
+    tpe = T.TensorType(dtype=floatX, broadcastable=(False,)*len(shp))
+    return tpe(name)
