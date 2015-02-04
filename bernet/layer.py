@@ -139,7 +139,7 @@ def layer_type(cls):
 class Layer(ConfigObject):
     name = REQUIRED(str)
     type = EITHER("Conv", "InnerProduct", "TanH", "Softmax", "Sigmoid", "ReLU",
-                  "DummyData", "Pooling")
+                  "DummyData", "Pooling", "Concat")
 
     def __init__(self, **kwargs):
         """
@@ -468,6 +468,29 @@ class DummyDataLayer(DataSourceLayer):
     def _outputs(self, inputs):
         return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
 
+# --------------------------- Util Layers -------------------------------------
+
+
+class ConcatLayer(Layer):
+    in_ports = REPEAT(str)
+    axis = REQUIRED(int)
+
+    def _output_shapes(self):
+        assert self.input_shapes != {}
+
+        joined_axis = 0
+        for in_shp in self.input_shapes.values():
+            joined_axis += in_shp[self.axis]
+        shp = list(next(iter(self.input_shapes.values())))
+        shp[self.axis] = joined_axis
+        return {"out": tuple(shp)}
+
+    def input_ports(self):
+        return tuple(self.in_ports)
+
+    def _outputs(self, inputs):
+        tensors = [inputs[p] for p in self.in_ports]
+        return T.concatenate(tensors, axis=self.axis)
 
 # ------------------------- Activation Layers ---------------------------------
 

@@ -448,6 +448,24 @@ class TestInnerProductLayer(TestCase):
         WithParameterExampleLifeCycle(layer, self).simulate()
 
 
+class TestConcatLayer(TestCase):
+    def test_concat_layer(self):
+        join = ConcatLayer(name="join", in_ports=["foo", "bar"], axis=2)
+        in_shape = (1, 3, 20, 20)
+        join.set_input_shapes({"foo": in_shape, "bar": in_shape})
+
+        self.assertTupleEqual(join.output_shapes()["out"],
+                              (1, 3, 40, 20))
+
+        rand_foo = np.random.sample(in_shape)
+        rand_bar = np.random.sample(in_shape)
+        outs = join.outputs({"foo": theano.shared(rand_foo),
+                             "bar": theano.shared(rand_bar)})
+
+        f = theano.function([], [outs["out"]])
+        assert_array_equal(f()[0], np.concatenate([rand_foo, rand_bar], axis=2))
+
+
 class TestConnectionParser(TestCase):
     def test_parse_layer(self):
         con_parse = ConnectionsParser()
