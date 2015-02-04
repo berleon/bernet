@@ -14,10 +14,12 @@
 from collections import defaultdict
 
 import numpy as np
+import theano
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, SUBCLASS_OF
 from bernet.layer import Layer, Connection, WithParameterLayer, format_ports
+from bernet.utils import tensor_from_shape
 
 
 class Network(ConfigObject):
@@ -47,6 +49,12 @@ class Network(ConfigObject):
         self.layer_free_in_ports = defaultdict(list)
         self.layer_free_out_ports = defaultdict(list)
 
+        self._input_shapes = {}
+        self._valid_input_shape = False
+
+        self._theano_order_outs = []
+        self._theano_order_ins = []
+
         self._setup_connections()
 
     def _get_data(self, file_name, url, sha256_expected):
@@ -61,16 +69,76 @@ class Network(ConfigObject):
             npzfile = np.load(f)
             return {n: npzfile[n] for n in npzfile.files}
 
-    def layer_outputs(self, inputs: '{<layer>: {<port>: object}}',
-                      inputs_shapes: '{<layer>: {<port>: object}}'):
+    def set_input_shapes(self, input_shapes: '{<layer>: {<port>: shape}}'):
+        self._valid_input_shape = False
+        self._check_satisfies_free_input_ports(input_shapes)
+        self._valid_input_shape = True
+
+        self._input_shapes = input_shapes
+        self._compile()
+
+    def _build_symbolic_outputs(self):
+        self._theano_order_ins = []
+        theano_ins = []
+        free_in_ports_tensors = defaultdict(dict)
+
+        for layer_name, in_ports in self.layer_free_in_ports.items():
+            for in_port in in_ports:
+                shape = self._input_shapes[layer_name][in_port]
+                name = "{:}[{:}]".format(layer_name, in_port)
+                tensor = tensor_from_shape(name, shape)
+                theano_ins.append(tensor)
+                free_in_ports_tensors[layer_name][in_port] = tensor
+                self._theano_order_ins.append((layer_name, in_port))
+
+        return self.layer_outputs(free_in_ports_tensors), theano_ins
+
+    def _compile(self):
+        self._assert_valid_input_shape()
+
+        layer_outs, theano_ins = self._build_symbolic_outputs()
+        self._theano_order_outs = []
+
+        theano_outs = []
+        for layer_name, out_ports in self.layer_free_out_ports.items():
+            for out_port in out_ports:
+                theano_outs.append(layer_outs[layer_name][out_port])
+                self._theano_order_outs.append((layer_name, out_port))
+
+        self._func = theano.function(theano_ins, theano_outs)
+
+    def _from_theano_outs(self, theano_outs: list) -> \
+            '{<layer_name>: {<port_name>: output}}':
+        """Converts the output list of theano.function to an output dictionary
+        `{<layer_name>: {<port_name>: output}}. """
+        dict_out = defaultdict(dict)
+        for (layer_name, port_name), out in \
+                zip(self._theano_order_outs, theano_outs):
+            dict_out[layer_name][port_name] = out
+
+        return dict_out
+
+    def _to_theano_ins(self, theano_ins):
+        """Converts an input dictionary with structure
+        `{<layer_name>: {<port_name>: output}} to a list for `self._func`. """
+        return [theano_ins[layer][port]
+                for layer, port in self._theano_order_ins]
+
+    def forward(self, inputs: '{<layer>: {<port>: object}}'):
+        self._assert_valid_input_shape()
+        assert self._func is not None
+        return self._from_theano_outs(self._func(self._to_theano_ins(inputs)))
+
+    def layer_outputs(self, inputs: '{<layer>: {<port>: object}}'):
         outputs = {}
         inputs = defaultdict(dict, **inputs)
-        inputs_shapes = defaultdict(dict, **inputs_shapes)
+        inputs_shapes = defaultdict(dict, **self._input_shapes)
 
         dic_layers_ports = {l: set(l.input_ports()) -
                             set(inputs[l.name].keys())
                             for l in self.layers}
-        self._assert_free_in_ports_satisfied(inputs)
+
+        self._check_satisfies_free_input_ports(inputs)
 
         while dic_layers_ports:
             layers_with_satisfied_inputs = \
@@ -96,16 +164,24 @@ class Network(ConfigObject):
 
         return outputs
 
-    def _assert_free_in_ports_satisfied(
+    def _check_satisfies_free_input_ports(
             self, inputs: '{<layer>: {<port>: object}}'):
         for layer_name, free_in_ports in self.layer_free_in_ports.items():
-            in_ports_given = list(inputs[layer_name].keys())
-            if in_ports_given != free_in_ports:
+            if layer_name not in inputs:
+                self.ctx.error("No ports given for layer `{:}` "
+                               "with free ports `{:}`"
+                               .format(layer_name, free_in_ports))
+
+            given_in_ports = list(inputs[layer_name].keys())
+            if given_in_ports != free_in_ports:
                 self.ctx.error(
                     "At Layer `{:}`: Ports given by input {:} do not match "
                     "the free ports {:}. "
-                    .format(layer_name, format_ports(in_ports_given),
+                    .format(layer_name, format_ports(given_in_ports),
                             format_ports(free_in_ports)))
+
+    def _assert_valid_input_shape(self) -> bool:
+        assert self._valid_input_shape
 
     def _setup_parameters(self, layer):
         if issubclass(type(layer), WithParameterLayer):

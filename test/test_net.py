@@ -131,9 +131,9 @@ class TestNetwork(TestCase):
     def test_output_simple(self):
         net = self.simple_network
         input_shape = (20, 20)
-        outs = net.layer_outputs(
-            inputs={"relu": {"in": T.ones(input_shape)}},
-            inputs_shapes={"relu": {"in": input_shape}})
+        net.set_input_shapes({"relu": {"in": input_shape}})
+        outs = net.layer_outputs({"relu": {"in": T.ones(input_shape)}})
+
         self.assertEqual(size(net.get_layer("tanh").output_shape()),
                          size(input_shape))
 
@@ -144,31 +144,29 @@ class TestNetwork(TestCase):
         # totally wrong inputs
         self.assertRaises(
             ConfigException,
-            net.layer_outputs,
-            inputs={"relu": {"in": T.ones(input_shape)}},
-            inputs_shapes={"relu": {"in": input_shape}}
+            net.set_input_shapes,
+            {"relu": {"in": input_shape}}
         )
 
         # join#1[from_net_in] is missing
         self.assertRaises(
             ConfigException,
-            net.layer_outputs,
-            inputs={
-                "conv#1": {"in": T.ones(input_shape)},
-            },
-            inputs_shapes={"conv#1": {"in": input_shape}}
+            net.set_input_shapes,
+            {"conv#1": {"in": input_shape}}
         )
+
         conv_input_shp = (1, 3, 20, 20)
         join_input_shp = (1, 5, 20, 17)
 
-        outs = net.layer_outputs(
-            inputs={
-                "conv#1": {"in": T.ones(input_shape)},
-                "join#1": {"from_net_in": T.ones(join_input_shp)}
-            },
-            inputs_shapes={"conv#1": {"in": input_shape},
-                           "join#1": {"from_net_in": join_input_shp}}
-        )
+        net.set_input_shapes({
+            "conv#1": {"in": conv_input_shp},
+            "join#1": {"from_net_in": join_input_shp}
+        })
+
+        outs = net.layer_outputs({
+            "conv#1": {"in": T.ones(input_shape)},
+            "join#1": {"from_net_in": T.ones(join_input_shp)}
+        })
         f = theano.function([], [outs["softmax#1"]["out"]])
         self.assertEqual(f()[0].shape,
                          net.get_layer("softmax#1").output_shape())
