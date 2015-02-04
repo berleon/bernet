@@ -169,8 +169,12 @@ class Layer(ConfigObject):
             not_satisfied = self._not_satisfied_input_ports(
                 input_shapes.keys())
             if len(not_satisfied) >= 1:
-                raise ValueError("Labels {!s} are not satisfied by {!s}".
-                                 format(not_satisfied, input_shapes.keys()))
+                raise ValueError(
+                    "Ports {!s} are not satisfied by {!s}"
+                    .format(
+                        format_ports(not_satisfied),
+                        format_ports(input_shapes.keys())))
+
             if len(not_found) >= 1:
                 raise ValueError("Recieved input shapes for ports {!s}, but "
                                  "got no such ports"
