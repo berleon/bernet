@@ -310,7 +310,7 @@ class WithParameterLayer(Layer):
         return T.as_tensor_variable(0)
 
 
-class ConvolutionLayer(WithParameterLayer, OneInOneOutLayer):
+class ConvLayer(WithParameterLayer, OneInOneOutLayer):
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
 

@@ -21,8 +21,8 @@ import re
 from bernet import utils
 
 from bernet.net import Network
-from bernet.layer import ConvolutionLayer, SoftmaxLayer, ReLULayer, TanHLayer, \
     Connection
+from bernet.layer import ConvLayer, SoftmaxLayer, ReLULayer, TanHLayer, \
 from bernet.config import ConfigException
 
 

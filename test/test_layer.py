@@ -281,7 +281,7 @@ class TestConvolutionLayer(TestCase):
             name = "conv#test_fm{:}_kw{:}_kh{:}_sh{:}_sv{:}_bm_{:}"\
                 .format(*p)
             self.conv_layers.append(
-                ConvolutionLayer(
+                ConvLayer(
                     name=name,
                     type="Conv",
                     num_feature_maps=p[fm],
@@ -297,7 +297,7 @@ class TestConvolutionLayer(TestCase):
         self.simple_conv_layer = self.conv_layers[0]
 
     def test_init(self):
-        conv = ConvolutionLayer(
+        conv = ConvLayer(
             name="conv#test_init",
             type="Conv",
             num_feature_maps=20,
@@ -313,7 +313,7 @@ class TestConvolutionLayer(TestCase):
         self.assertEqual(conv.kernel_h, 5)
 
     def test_parameter_shape(self):
-        conv = ConvolutionLayer(
+        conv = ConvLayer(
             name="conv#test",
             type="Conv",
             num_feature_maps=20,
