@@ -213,11 +213,11 @@ class Layer(ConfigObject):
     def _outputs(self, inputs):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def output_shapes(self):
+    def output_shapes(self) -> "{<port>: <shape>}":
         self._assert_connected()
         return self._output_shapes()
 
-    def _output_shapes(self):
+    def _output_shapes(self) -> "{<port>: <shape>}":
         raise NotImplementedError("Please use a subclass of Layer")
 
     def _reshape(self, in_port, sym_tensor):
