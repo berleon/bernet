@@ -17,7 +17,7 @@ import numpy as np
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, SUBCLASS_OF
-from bernet.layer import Layer, Connection
+from bernet.layer import Layer, Connection, WithParameterLayer, format_ports
 
 
 class Network(ConfigObject):
@@ -33,6 +33,7 @@ class Network(ConfigObject):
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
         self.ctx = self._get_ctx(kwargs)
+        self.data = {}
         if self.data_url is not None and self.data_sha256 is None:
             self.ctx.error("Field data_url required data_sha256 to be set")
             return
@@ -43,11 +44,10 @@ class Network(ConfigObject):
             data_sha256 = kwargs['data_sha256']
             self.data = self._get_data(file_name, data_url, data_sha256)
 
-        self.input_layers_labels = defaultdict(list)
-        self.output_layers_labels = defaultdict(list)
+        self.layer_free_in_ports = defaultdict(list)
+        self.layer_free_out_ports = defaultdict(list)
 
         self._setup_connections()
-        self._setup_parameters()
 
     def _get_data(self, file_name, url, sha256_expected):
         with open(file_name, "w+b") as f:
@@ -61,11 +61,59 @@ class Network(ConfigObject):
             npzfile = np.load(f)
             return {n: npzfile[n] for n in npzfile.files}
 
-    def outputs(self, inputs: '{<layer>: {<port>: object}}'):
-        pass
+    def layer_outputs(self, inputs: '{<layer>: {<port>: object}}',
+                      inputs_shapes: '{<layer>: {<port>: object}}'):
+        outputs = {}
+        inputs = defaultdict(dict, **inputs)
+        inputs_shapes = defaultdict(dict, **inputs_shapes)
 
-    def _setup_parameters(self):
-        pass
+        dic_layers_ports = {l: set(l.input_ports()) -
+                            set(inputs[l.name].keys())
+                            for l in self.layers}
+        self._assert_free_in_ports_satisfied(inputs)
+
+        while dic_layers_ports:
+            layers_with_satisfied_inputs = \
+                [layer for layer, ports in dic_layers_ports.items()
+                 if not ports]
+
+            for layer in layers_with_satisfied_inputs:
+                inputs_for_layer = inputs.get(layer.name)
+                for p in layer.input_ports():
+                    assert p in inputs_for_layer
+
+                layer.set_input_shapes(inputs_shapes[layer.name])
+                self._setup_parameters(layer)
+                outputs[layer.name] = layer.outputs(inputs_for_layer)
+                for con in self._connections_from(layer):
+                    inputs_shapes[con.to_name][con.to_port] = \
+                        layer.output_shapes()[con.from_port]
+                    inputs[con.to_name][con.to_port] = \
+                        outputs[con.from_name][con.from_port]
+                    # port is now satisfied
+                    dic_layers_ports[con.to_layer].remove(con.to_port)
+                del dic_layers_ports[layer]
+
+        return outputs
+
+    def _assert_free_in_ports_satisfied(
+            self, inputs: '{<layer>: {<port>: object}}'):
+        for layer_name, free_in_ports in self.layer_free_in_ports.items():
+            in_ports_given = list(inputs[layer_name].keys())
+            if in_ports_given != free_in_ports:
+                self.ctx.error(
+                    "At Layer `{:}`: Ports given by input {:} do not match "
+                    "the free ports {:}. "
+                    .format(layer_name, format_ports(in_ports_given),
+                            format_ports(free_in_ports)))
+
+    def _setup_parameters(self, layer):
+        if issubclass(type(layer), WithParameterLayer):
+            for param in layer.parameters:
+                if self.data.get(param.name) is not None:
+                    param.tensor = self.data[param.name]
+                else:
+                    layer.fill_parameter(param)
 
     def _connections_from(self, layer):
         return [c for c in self.connections if c.from_name == layer.name]
@@ -79,11 +127,11 @@ class Network(ConfigObject):
             self._check_connections(layer)
             free_in = self._free_in_ports(layer)
             if len(free_in) > 0:
-                self.input_layers_labels[layer.name].extend(free_in)
+                self.layer_free_in_ports[layer.name].extend(free_in)
 
             free_out = self._free_out_ports(layer)
             if len(free_out) > 0:
-                self.output_layers_labels[layer.name].extend(free_out)
+                self.layer_free_out_ports[layer.name].extend(free_out)
 
     def _check_connections(self, layer):
         connected_to_port = [c.to_port for c in self._connections_to(layer)]
@@ -116,3 +164,11 @@ class Network(ConfigObject):
                                for c in self._connections_from(layer)]
         return [p for p in layer.output_ports()
                 if p not in connected_out_ports]
+
+    def get_layer(self, name):
+        """Return the layer with name `name`. If no layer with that name
+         exists, None is returned."""
+        for l in self.layers:
+            if l.name == name:
+                return l
+        return None
