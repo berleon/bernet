@@ -463,7 +463,8 @@ class TestConcatLayer(TestCase):
                              "bar": theano.shared(rand_bar)})
 
         f = theano.function([], [outs["out"]])
-        assert_array_equal(f()[0], np.concatenate([rand_foo, rand_bar], axis=2))
+        assert_array_equal(f()[0],
+                           np.concatenate([rand_foo, rand_bar], axis=2))
 
 
 class TestConnectionParser(TestCase):
