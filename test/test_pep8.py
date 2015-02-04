@@ -5,7 +5,7 @@ import pep8
 
 
 class TestCodeFormat(unittest.TestCase):
-    ERROR_MSG = "Please fix you code style errors."
+    ERROR_MSG = "Please fix your code style errors."
 
     def test_pep8_conformance_core(self):
         files = glob('bernet/*.py') + glob('test/*.py')
