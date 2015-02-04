@@ -295,19 +295,27 @@ class WithParameterLayer(Layer):
     def parameter_shape(self, param: 'Parameter|str'):
         self._assert_connected()
         if type(param) == str:
-            fitting_params = [p for p in self.parameters if p.name == param]
-            assert len(fitting_params) == 1
-            param = fitting_params[0]
+            param = self._param_by_name(param)
 
         return self._parameter_shape(param)
+
+    def _param_by_name(self, param_name):
+        fitting_params = [p for p in self.parameters if p.name == param_name]
+        assert len(fitting_params) == 1
+        return fitting_params[0]
 
     def _parameter_shape(self, param: Parameter):
         raise NotImplementedError("Please use a subclass of Layer")
 
+    def fill_parameter(self, param: 'Parameter|str'):
+        if type(param) == str:
+            param = self._param_by_name(param)
+
+        param.tensor = param.filler.fill(self.parameter_shape(param))
+
     def fill_parameters(self):
-        self._assert_connected()
         for p in self.parameters:
-            p.tensor = p.filler.fill(self.parameter_shape(p))
+            self.fill_parameter(p)
 
     def loss(self):
         self._assert_connected()
