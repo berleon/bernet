@@ -586,6 +586,13 @@ class ConnectionsParser(ConfigField):
             ctx.error("Expected str or list, but got type `{:}`".format(value))
 
 
+def format_ports(ports):
+            if len(ports) == 0:
+                return "`None`"
+            else:
+                return ",".join(["`{:}`".format(p) for p in ports])
+
+
 class Connection(ConfigObject):
     from_name = REQUIRED(str)
     from_port = OPTIONAL(str)
