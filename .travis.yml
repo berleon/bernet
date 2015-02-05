@@ -17,8 +17,8 @@ before_install:
 - sudo rm -rf /dev/shm
 - sudo ln -s /run/shm /dev/shm
 install:
-- conda create --yes -n env_name python=$TRAVIS_PYTHON_VERSION pip numpy scipy matplotlib nose coverage
+- conda create --yes -n env_name python=$TRAVIS_PYTHON_VERSION pip numpy scipy matplotlib nose coverage sphinx
 - source activate env_name
-- pip install Theano simplejson pep8 nose-timer
+- pip install Theano simplejson pep8 nose-timer sphinx_rtd_theme
 script:
-- ./run_tests.sh
+- ./travis.sh
