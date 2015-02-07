@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from collections import defaultdict
 
 import numpy as np
@@ -251,8 +252,8 @@ class Network(ConfigObject):
                 if p not in connected_out_ports]
 
     def get_layer(self, name):
-        """Return the layer with name `name`. If no layer with that name
-         exists, None is returned."""
+        """Return the layer with layer.name == `name`. If no such layer
+        exists, None is returned."""
         for l in self.layers:
             if l.name == name:
                 return l
