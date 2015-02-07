@@ -17,10 +17,10 @@ from numpy.testing import assert_array_equal
 
 import theano
 
-theano.config.mode = "FAST_COMPILE"
-
 from bernet.layer import *
 from bernet.config import ConfigException, InitContext
+
+theano.config.mode = "FAST_COMPILE"
 
 
 class StandardLayerTest(object):

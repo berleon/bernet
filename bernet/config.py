@@ -389,8 +389,11 @@ class ConfigObject(object, metaclass=_ConfigObjectType):
                                  .format(k, valid_keys))
 
     def _add_property(self, name):
-        fget = lambda slf: slf._get_property(name)
-        fset = lambda slf, value: slf._set_property(name, value)
+        def fget(self):
+            return self._get_property(name)
+
+        def fset(self, value):
+            return self._set_property(name, value)
 
         setattr(self.__class__, name, property(fget, fset))
 
