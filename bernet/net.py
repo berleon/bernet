@@ -137,7 +137,7 @@ class Network(ConfigObject):
     def forward(self, inputs: '{<layer>: {<port>: object}}'):
         self._assert_valid_input_shape()
         assert self._func is not None
-        return self._from_theano_outs(self._func(self._to_theano_ins(inputs)))
+        return self._from_theano_outs(self._func(*self._to_theano_ins(inputs)))
 
     def layer_outputs(self, inputs: '{<layer>: {<port>: object}}'):
         outputs = {}

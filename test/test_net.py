@@ -171,6 +171,14 @@ class TestNetwork(TestCase):
         self.assertEqual(f()[0].shape,
                          net.get_layer("softmax#1").output_shape())
 
+    def test_forward(self):
+        net = self.simple_network
+        input_shape = (20, 20)
+        net.set_input_shapes({"relu": {"in": input_shape}})
+
+        outs = net.forward({"relu": {"in": np.random.sample(input_shape)}})
+        self.assertEqual(size(outs["tanh"]["out"].shape), size(input_shape))
+
     def test_check_sha256sum(self):
         with tempfile.NamedTemporaryFile("w+b") as f:
             random = np.random.sample((200, 200))
