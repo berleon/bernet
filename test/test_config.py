@@ -17,7 +17,7 @@ import re
 import unittest
 
 from bernet.config import *
-from bernet.config import _TypeConstructableWrapper
+from bernet.config import _TypeConstructableWrapper, _ConfigObjectType
 
 
 class TestREQUIRED(TestCase):
@@ -173,7 +173,8 @@ class TestSUBCLASS_OF(TestCase):
 
 
 class Person(ConfigObject):
-    name = REQUIRED(str)
+    name = REQUIRED(str, doc="<Person.name docstring>")
+
     sex = EITHER("female", "male", "x")
     age = OPTIONAL(int)
 
@@ -242,6 +243,16 @@ class TestConfigObject(TestCase):
         car = Car()
         self.assertEqual(car.n_wheels, 4)
 
+    def test_docstrings(self):
+        Person_cls = _ConfigObjectType(
+            "TestClass", (ConfigObject, object),
+            {"field": REQUIRED(str, "<TestClass.field docstring>")})
+        docstrings = _ConfigObjectType._docstrings(Person_cls)
+        self.assertIn(
+            ":param field: <TestClass.field docstring>\n"
+            ":type field: :class:`.str`",
+            docstrings)
+
 
 class TestJsonEncoding(TestCase):
     def test_simple_encoding(self):
@@ -275,7 +286,4 @@ class TestInitContext(TestCase):
 class TestTypeConstrutableWrapper(TestCase):
     def test_is_constructable(self):
         wrapper = _TypeConstructableWrapper(int)
-        self.assertEqual(wrapper.construct(20, InitContext()), 20)
-
-        wrapper = _TypeConstructableWrapper(REQUIRED(int))
         self.assertEqual(wrapper.construct(20, InitContext()), 20)
