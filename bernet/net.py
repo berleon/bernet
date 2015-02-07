@@ -23,14 +23,23 @@ from bernet.utils import tensor_from_shape
 
 
 class Network(ConfigObject):
-    name = REQUIRED(str)
-    description = OPTIONAL(str)
-    # input_shape = REQUIRED(int)
-    batch_size = OPTIONAL(int, default=32)
-    data_url = OPTIONAL(str)
-    data_sha256 = OPTIONAL(str)
-    layers = REPEAT(SUBCLASS_OF(Layer))
-    connections = REPEAT(Connection)
+    """
+    Network connects multiple :class:`.Layer` together.
+    """
+
+    name = REQUIRED(str, doc="name of the Network")
+
+    description = OPTIONAL(str, doc="a short description of the Network")
+
+    data_url = OPTIONAL(str, doc="A URL of a numpy array file. "
+                                 "Use this to load saved layer parameters.")
+
+    data_sha256 = OPTIONAL(str, doc="The sha256 sum of the file given "
+                                    "by `data_url`")
+
+    layers = REPEAT(SUBCLASS_OF(Layer), doc="A list of :class:`.Layer`")
+
+    connections = REPEAT(Connection, doc="A list of :class:`.Connection` ")
 
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
