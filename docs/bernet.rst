@@ -27,6 +27,7 @@ bernet.net module
     :members:
     :undoc-members:
     :show-inheritance:
+    :member-order: bysource
 
 bernet.utils module
 -------------------
