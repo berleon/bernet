@@ -539,6 +539,28 @@ class SoftmaxLayer(ActivationLayer):
 
 
 class ConnectionsParser(ConfigField):
+    """
+    A simple Parser to allow shortcuts for connections.
+
+    Example:
+    .. testsetup:: *
+
+        from bernet.layer import ConnectionsParser
+
+    .. testcode::
+
+        from bernet.layer import ConnectionsParser
+        conn_parse = ConnectionsParser()
+        print(conn_parse.construct("conv#1 -> relu#1")[0])
+
+    .. testoutput::
+        :options: +NORMALIZE_WHITESPACE
+
+        Connection(from_name=conv#1, from_port=None, \
+to_name=relu#1, to_port=None)
+
+    """
+
     # `in_port` and `out_port` are optional
     # [in_port]layer_name[out_port]
     layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
