@@ -265,6 +265,23 @@ class Layer(ConfigObject):
         return list(filter(lambda p: p not in self.input_shapes,
                            self.input_ports()))
 
+    @classmethod
+    def construct_subclass(cls, value, ctx):
+        if type(value) == dict:
+            assert type(value['type']) == str
+            allowed_types = Layer.__config_fields__["type"].fix_values
+            if value['type'] in allowed_types:
+                class_name = value['type'] + "Layer"
+                return globals()[class_name](**value)
+            else:
+                ctx.error("type `{:}` is not in allowed types `{:}`"
+                          .format(value['type'], allowed_types))
+        elif issubclass(type(value), Layer):
+            return value
+        else:
+            ctx.error("Cannot construct a subclass of Layer from value `{:}`"
+                      .format(value))
+
 
 class OneInOneOutLayer(Layer):
     def set_input_shape(self, input_shape):
