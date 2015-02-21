@@ -477,4 +477,5 @@ class ConfigObject(object, metaclass=_ConfigObjectType):
         for name, _ in self.__config_fields__.items():
             fields.append("{:}={:}".format(name, getattr(self, name)))
 
-        return self.__class__.__name__ + "(" + ",".join(fields) + ")"
+        fields.sort()
+        return self.__class__.__name__ + "(" + ", ".join(fields) + ")"
