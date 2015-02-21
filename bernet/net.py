@@ -19,7 +19,8 @@ import theano
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, SUBCLASS_OF
-from bernet.layer import Layer, Connection, WithParameterLayer, format_ports
+from bernet.layer import Layer, Connection, WithParameterLayer, format_ports, \
+    ConnectionsParser
 from bernet.utils import tensor_from_shape
 
 
@@ -58,7 +59,8 @@ class Network(ConfigObject):
 
     layers = REPEAT(SUBCLASS_OF(Layer), doc="A list of :class:`.Layer`")
 
-    connections = REPEAT(Connection, doc="A list of :class:`.Connection` ")
+    connections = OPTIONAL(
+        ConnectionsParser(doc="A list of :class:`.Connection` "))
 
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
