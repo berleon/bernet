@@ -261,6 +261,18 @@ class Network(ConfigObject):
                 if con.is_part(layer):
                     con.add_layer(layer)
 
+    def free_in_ports(self) -> '{<layer_name>: [<port>]}':
+        """Returns a dictionary with the layer names as keys and a list of free
+        input ports as values."""
+        return {l.name: self._free_in_ports(l) for l in self.layers
+                if self._free_in_ports(l)}
+
+    def free_out_ports(self):
+        """Returns a dictionary with the layer names as keys and a list of free
+        output ports as values."""
+        return {l.name: self._free_out_ports(l) for l in self.layers
+                if self._free_out_ports(l)}
+
     def _free_in_ports(self, layer):
         connected_in_ports = [c.to_port for c in self._connections_to(layer)]
         return [p for p in layer.input_ports() if p not in connected_in_ports]
