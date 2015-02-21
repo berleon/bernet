@@ -429,9 +429,18 @@ class ConfigObject(object, metaclass=_ConfigObjectType):
         return cls(**obj)
 
     @classmethod
-    def from_json(cls, str, **kwargs):
+    def load_json(cls, fp, **kwargs) -> 'cls':
+        raw_obj = json.load(fp)
+        return cls._loads_json_from_raw_obj(raw_obj)
+
+    @classmethod
+    def loads_json(cls, str, **kwargs) -> 'cls':
         raw_obj = json.loads(str)
-        ctx = InitContext()
+        return cls._loads_json_from_raw_obj(raw_obj)
+
+    @classmethod
+    def _loads_json_from_raw_obj(cls, raw_obj):
+        ctx = InitContext(raise_exceptions=True)
         raw_obj["__ctx__"] = ctx
         obj = cls(**raw_obj)
         if ctx.n_errors() != 0:

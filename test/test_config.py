@@ -258,7 +258,7 @@ class TestJsonEncoding(TestCase):
     def test_simple_encoding(self):
         max = Person(name="Max", sex="male", age=20)
 
-        max_json = Person.from_json(max.to_json())
+        max_json = Person.loads_json(max.to_json())
         self.assertEqual(max, max_json)
 
     def test_complex_encoding(self):
@@ -266,12 +266,12 @@ class TestJsonEncoding(TestCase):
         hans = Person(name="Hans", sex="male", age=26)
 
         c = Company(name="Planetron Inc.", employes=[max, hans])
-        through_json = Company.from_json(c.to_json())
+        through_json = Company.loads_json(c.to_json())
         self.assertEqual(c, through_json)
 
     def test_wrong_json_fails(self):
         json_str = """{"name": "Max", "sex": "foo"}"""
-        Person.from_json(json_str)
+        self.assertRaises(ConfigException, Person.loads_json, json_str)
 
 
 class TestInitContext(TestCase):
