@@ -314,10 +314,13 @@ class SUBCLASS_OF(ConfigField):
     def _construct(self, value, ctx):
         if issubclass(type(value), self.tpe):
             return value
-        else:
-            ctx.error("Got value `{:}` of type `{:}`. Expected a subclass of "
-                      "`{:}``"
-                      .format(value, type(value).__name__, self.tpe.__name__))
+        elif hasattr(self.tpe, 'construct_subclass'):
+            constructed = self.tpe.construct_subclass(value, ctx)
+            if issubclass(type(constructed), self.tpe):
+                return constructed
+        ctx.error("Got value `{:}` of type `{:}`. Expected a subclass "
+                  "of `{:}``".format(value, type(value).__name__,
+                                     self.tpe.__name__))
 
     def _type(self):
         return "subclass of :class:`.{:}`".format(self.tpe.__name__)
