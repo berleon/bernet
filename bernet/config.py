@@ -194,7 +194,7 @@ def _subclass_of_json_field(tpe):
 
 class OPTIONAL(ConfigField):
     def __init__(self, tpe, default=None, doc="", type_sig=""):
-        super().__init__(doc=doc, type_sig="")
+        super().__init__(doc=doc, type_sig=type_sig)
         self.tpe = _TypeConstructableWrapper(tpe)
         self._default = default
 
