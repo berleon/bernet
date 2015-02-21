@@ -566,7 +566,8 @@ to_name=relu#1, to_port=None)
     layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
                              .format('([^\]\s]+)'))
 
-    def __init__(self):
+    def __init__(self, doc="", type_sig=""):
+        super().__init__(doc=doc, type_sig=type_sig)
         self.ctx = None
 
     def _parse_layer(self, string):
