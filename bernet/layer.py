@@ -563,15 +563,15 @@ to_name=relu#1, to_port=None)
 
     # `in_port` and `out_port` are optional
     # [in_port]layer_name[out_port]
-    layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
-                             .format('([^\]\s]+)'))
+    _layer_regex = re.compile('^\s*(\[{0}\])?{0}(\[{0}\])?\s*$'
+                              .format('([^\]\s]+)'))
 
     def __init__(self, doc="", type_sig=""):
         super().__init__(doc=doc, type_sig=type_sig)
         self.ctx = None
 
     def _parse_layer(self, string):
-        match = self.layer_regex.match(string)
+        match = self._layer_regex.match(string)
         if match is None:
             self.ctx.error("Could not parse Connection `{:}`".format(string))
         grps = match.groups()
