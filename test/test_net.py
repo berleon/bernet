@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import tempfile
 
 from unittest import TestCase
@@ -187,3 +188,25 @@ class TestNetwork(TestCase):
             self.assertRaises(ValueError, Network,
                               name="test_net", data_url="file://" + f.name,
                               data_sha256="wrong")
+
+    def test_load_json(self):
+        _dir = os.path.dirname(os.path.realpath(__file__))
+
+        with open(_dir + "/../example/shallow-net.json") as f:
+            net = Network.load_json(f)
+            self.assertDictEqual(
+                net.free_in_ports(),
+                {'ip#1': ['in']}
+            )
+            self.assertDictEqual(
+                net.free_out_ports(),
+                {'tanh#2': ['out']}
+            )
+
+            net.set_input_shapes({'ip#1': {'in': (1, 1, 16, 16)}})
+            out = net.forward(
+                {'ip#1': {'in': np.random.sample((1, 1, 16, 16))}})
+
+            self.assertTupleEqual(out["tanh#2"]["out"].shape,
+                                  net.get_layer('tanh#2').output_shape())
+            print(net.get_layer('tanh#2').output_shape())
