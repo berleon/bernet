@@ -596,11 +596,13 @@ to_name=relu#1, to_port=None)
             return list(self._parse_connections(value))
         elif type(value) == list:
             ret_list = []
-            for item in value:
-                if type(item) == Connection:
-                    ret_list.append(item)
-                elif type(item) == dict:
-                    ret_list.append(Connection(**item))
+            for conn in value:
+                if type(conn) == Connection:
+                    ret_list.append(conn)
+                elif type(conn) == dict:
+                    ret_list.append(Connection(**conn))
+                elif type(conn) == str:
+                    return list(self._parse_connections(conn))
                 else:
                     ctx.error("Cannot parse connection from value `{:}`"
                               .format(value))
