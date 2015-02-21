@@ -1,0 +1,40 @@
+{
+  "name": "shallow-net",
+  "layers": [
+    {
+      "type": "InnerProduct",
+      "name": "ip#1",
+      "n_units": 764,
+      "weight": {
+        "name": "ip#1_weight",
+        "shape": [1, 1, 256, 764]
+      },
+      "bias": {
+        "name": "ip#1_bias",
+        "shape": [1, 1, 1, 256]
+      }
+    },
+    {
+      "type": "TanH",
+      "name": "tanh#1"
+    },
+    {
+      "type": "InnerProduct",
+      "name": "ip#2",
+      "n_units": 10,
+      "weight": {
+        "name": "ip#2_weight",
+        "shape": [1, 1, 256, 10]
+      },
+      "bias": {
+        "name": "ip#2_bias",
+        "shape": [1, 1, 1, 10]
+      }
+    },
+    {
+      "type": "TanH",
+      "name": "tanh#2"
+    }
+  ],
+  "connections": ["ip#1 -> tanh#1 -> ip#2 -> tanh#2"]
+}
