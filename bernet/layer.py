@@ -610,6 +610,9 @@ to_name=relu#1, to_port=None)
         else:
             ctx.error("Expected str or list, but got type `{:}`".format(value))
 
+    def _type(self):
+        return "list of :class:`.Connection`"
+
 
 def format_ports(ports):
             if len(ports) == 0:
