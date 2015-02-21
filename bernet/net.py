@@ -26,6 +26,24 @@ from bernet.utils import tensor_from_shape
 class Network(ConfigObject):
     """
     Network connects multiple :class:`.Layer` together.
+
+    The Network is a graph where the nodes are :class:`.Layer` and the edges
+    are connections :class:`.Connection`.
+
+    .. graphviz::
+
+        digraph foo {
+           "TODO:" -> "Network" -> "to" -> "dot";
+        }
+
+    Create a Network
+    ----------------
+
+    The default way to create a Network is to load it form a network json file.
+    .. code-block:: python
+
+        net = Network.from_json("my_network.json")
+
     """
 
     name = REQUIRED(str, doc="name of the Network")
