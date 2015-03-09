@@ -16,6 +16,7 @@ from collections import defaultdict
 
 import numpy as np
 import theano
+import theano.tensor as T
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, SUBCLASS_OF
@@ -76,11 +77,9 @@ class Network(ConfigObject):
             data_sha256 = kwargs['data_sha256']
             self.data = self._get_data(file_name, data_url, data_sha256)
 
+        self._func = None
         self.layer_free_in_ports = defaultdict(list)
         self.layer_free_out_ports = defaultdict(list)
-
-        self._input_shapes = {}
-        self._valid_input_shape = False
 
         self._theano_order_outs = []
         self._theano_order_ins = []
@@ -99,14 +98,6 @@ class Network(ConfigObject):
             npzfile = np.load(f)
             return {n: npzfile[n] for n in npzfile.files}
 
-    def set_input_shapes(self, input_shapes: '{<layer>: {<port>: shape}}'):
-        self._valid_input_shape = False
-        self._check_satisfies_free_input_ports(input_shapes)
-        self._valid_input_shape = True
-
-        self._input_shapes = input_shapes
-        self._compile()
-
     def _build_symbolic_outputs(self):
         self._theano_order_ins = []
         theano_ins = []
@@ -114,9 +105,9 @@ class Network(ConfigObject):
 
         for layer_name, in_ports in self.layer_free_in_ports.items():
             for in_port in in_ports:
-                shape = self._input_shapes[layer_name][in_port]
                 name = "{:}[{:}]".format(layer_name, in_port)
-                tensor = tensor_from_shape(name, shape)
+                tensor = T.tensor4(name, dtype=theano.config.floatX)
+
                 theano_ins.append(tensor)
                 free_in_ports_tensors[layer_name][in_port] = tensor
                 self._theano_order_ins.append((layer_name, in_port))
@@ -124,8 +115,6 @@ class Network(ConfigObject):
         return self.layer_outputs(free_in_ports_tensors), theano_ins
 
     def _compile(self):
-        self._assert_valid_input_shape()
-
         layer_outs, theano_ins = self._build_symbolic_outputs()
         self._theano_order_outs = []
 
@@ -155,14 +144,13 @@ class Network(ConfigObject):
                 for layer, port in self._theano_order_ins]
 
     def forward(self, inputs: '{<layer>: {<port>: object}}'):
-        self._assert_valid_input_shape()
-        assert self._func is not None
+        if self._func is None:
+            self._compile()
         return self._from_theano_outs(self._func(*self._to_theano_ins(inputs)))
 
     def layer_outputs(self, inputs: '{<layer>: {<port>: object}}'):
         outputs = {}
         inputs = defaultdict(dict, **inputs)
-        inputs_shapes = defaultdict(dict, **self._input_shapes)
 
         dic_layers_ports = {l: set(l.input_ports()) -
                             set(inputs[l.name].keys())
@@ -180,12 +168,9 @@ class Network(ConfigObject):
                 for p in layer.input_ports():
                     assert p in inputs_for_layer
 
-                layer.set_input_shapes(inputs_shapes[layer.name])
                 self._setup_parameters(layer)
                 outputs[layer.name] = layer.outputs(inputs_for_layer)
                 for con in self._connections_from(layer):
-                    inputs_shapes[con.to_name][con.to_port] = \
-                        layer.output_shapes()[con.from_port]
                     inputs[con.to_name][con.to_port] = \
                         outputs[con.from_name][con.from_port]
                     # port is now satisfied
@@ -209,9 +194,6 @@ class Network(ConfigObject):
                     "the free ports {:}. "
                     .format(layer_name, format_ports(given_in_ports),
                             format_ports(free_in_ports)))
-
-    def _assert_valid_input_shape(self) -> bool:
-        assert self._valid_input_shape
 
     def _setup_parameters(self, layer):
         if issubclass(type(layer), WithParameterLayer):
@@ -290,3 +272,10 @@ class Network(ConfigObject):
             if l.name == name:
                 return l
         return None
+
+    def cost(self, data, labels):
+        pass
+
+
+class OneInOneOutNetwork(Network):
+    pass

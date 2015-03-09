@@ -15,6 +15,7 @@ import os
 import tempfile
 
 from unittest import TestCase
+import unittest
 
 import numpy as np
 import theano
@@ -52,7 +53,8 @@ class TestNetwork(TestCase):
                 bias=Parameter(name="conv#1#bias"),
                 kernel_w=4,
                 kernel_h=4,
-                num_feature_maps=5
+                num_feature_maps=5,
+                input_shape=(1, 3, 20, 20),
             ),
             "relu#1": ReLULayer(name="relu#1"),
             "join": ConcatLayer(name="join#1",
@@ -63,6 +65,7 @@ class TestNetwork(TestCase):
                 n_units=64,
                 weight=Parameter(name="conv#1#weight"),
                 bias=Parameter(name="conv#1#bias"),
+                input_shape=(1, 5, 37, 17),
             ),
             "relu#2": ReLULayer(name="relu#2"),
             "softmax": SoftmaxLayer(name="softmax#1"),
@@ -132,11 +135,12 @@ class TestNetwork(TestCase):
     def test_output_simple(self):
         net = self.simple_network
         input_shape = (20, 20)
-        net.set_input_shapes({"relu": {"in": input_shape}})
-        outs = net.layer_outputs({"relu": {"in": T.ones(input_shape)}})
+        x = T.ones(input_shape)
+        outs = net.layer_outputs({"relu": {"in": x}})
 
-        self.assertEqual(size(net.get_layer("tanh").output_shape()),
-                         size(input_shape))
+        f = theano.function([], [outs["tanh"]["out"]])
+        out = f()
+        self.assertEqual(out[0].shape, input_shape)
 
     def test_output_complex(self):
         net = self.complex_net
@@ -145,38 +149,33 @@ class TestNetwork(TestCase):
         # totally wrong inputs
         self.assertRaises(
             ConfigException,
-            net.set_input_shapes,
+            net.layer_outputs,
             {"relu": {"in": input_shape}}
         )
 
         # join#1[from_net_in] is missing
         self.assertRaises(
             ConfigException,
-            net.set_input_shapes,
+            net.layer_outputs,
             {"conv#1": {"in": input_shape}}
         )
 
         conv_input_shp = (1, 3, 20, 20)
         join_input_shp = (1, 5, 20, 17)
 
-        net.set_input_shapes({
-            "conv#1": {"in": conv_input_shp},
-            "join#1": {"from_net_in": join_input_shp}
-        })
-
         outs = net.layer_outputs({
             "conv#1": {"in": T.ones(input_shape)},
             "join#1": {"from_net_in": T.ones(join_input_shp)}
         })
+        join_fn = theano.function([], [outs["join#1"]["out"]])
+        self.assertEqual(join_fn()[0].shape, (1, 5, 37, 17))
         f = theano.function([], [outs["softmax#1"]["out"]])
-        self.assertEqual(f()[0].shape,
-                         net.get_layer("softmax#1").output_shape())
+        self.assertTupleEqual(f()[0].shape, (1, 64))
 
+    @unittest.skip
     def test_forward(self):
         net = self.simple_network
         input_shape = (20, 20)
-        net.set_input_shapes({"relu": {"in": input_shape}})
-
         outs = net.forward({"relu": {"in": np.random.sample(input_shape)}})
         self.assertEqual(size(outs["tanh"]["out"].shape), size(input_shape))
 
@@ -203,10 +202,7 @@ class TestNetwork(TestCase):
                 {'tanh#2': ['out']}
             )
 
-            net.set_input_shapes({'ip#1': {'in': (1, 1, 16, 16)}})
             out = net.forward(
-                {'ip#1': {'in': np.random.sample((1, 1, 16, 16))}})
+                {'ip#1': {'in': np.random.sample((1, 1, 28, 28))}})
 
-            self.assertTupleEqual(out["tanh#2"]["out"].shape,
-                                  net.get_layer('tanh#2').output_shape())
-            print(net.get_layer('tanh#2').output_shape())
+            self.assertTupleEqual(out["tanh#2"]["out"].shape, (1, 10))

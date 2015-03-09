@@ -15,6 +15,7 @@
 import numpy as np
 import re
 import theano
+from theano.ifelse import ifelse
 import theano.tensor as T
 import theano.tensor.signal.downsample
 
@@ -74,8 +75,9 @@ class Shape(REPEAT):
     # (batch size, channels, height, width)
     MAX_DIMS = 4
 
-    def __init__(self, dims: int=None, max_dims: int=MAX_DIMS):
-        super().__init__(int)
+    def __init__(self, dims: int=None, max_dims: int=MAX_DIMS,
+                 doc="", type_sig=""):
+        super().__init__(int, doc=doc, type_sig=type_sig)
         self.dims = dims
         self.max_dims = max_dims
         if self.max_dims > self.MAX_DIMS:
@@ -84,6 +86,9 @@ class Shape(REPEAT):
 
     def _construct(self, value, ctx):
         constr_list = super()._construct(value, ctx)
+        if constr_list is None:
+            ctx.error("No Shape given.")
+
         dims = len(constr_list)
 
         if self.dims is not None and self.dims != dims:
@@ -151,42 +156,12 @@ class Layer(ConfigObject):
                                     self.__class__.__name__.rstrip("Layer"))
         super().__init__(**kwargs)
         self._connected = False
-        self.input_shapes = {}
-        self._update_connection_status()
 
     def input_ports(self):
         return "in",
 
     def output_ports(self):
         return "out",
-
-    def connected(self):
-        return self._connected
-
-    def set_input_shapes(self, input_shapes: "{str: tuple}"):
-        if not self._are_all_inputs_ports_satisfied_by(input_shapes.keys()):
-            not_found = self._not_found_in_input_ports(input_shapes.keys())
-            not_satisfied = self._not_satisfied_input_ports(
-                input_shapes.keys())
-            if len(not_satisfied) >= 1:
-                raise ValueError(
-                    "Ports {!s} are not satisfied by {!s}"
-                    .format(
-                        format_ports(not_satisfied),
-                        format_ports(input_shapes.keys())))
-
-            if len(not_found) >= 1:
-                raise ValueError("Recieved input shapes for ports {!s}, but "
-                                 "got no such ports"
-                                 .format(not_found))
-
-        self.input_shapes = input_shapes
-        self._update_connection_status()
-
-    def clear_connections(self):
-        self._assert_connected()
-        self._connected = False
-        self.input_shapes = {}
 
     def copy(self):
         # TODO: checkout copying
@@ -199,7 +174,6 @@ class Layer(ConfigObject):
         """
         :param input: dict of {"<input_port>": symbolic tensor variable}
         """
-        self._assert_connected()
         for l in self.input_ports():
             if l not in inputs:
                 raise KeyError("Expected a symbolic tensor variable for input"
@@ -217,53 +191,31 @@ class Layer(ConfigObject):
     def _outputs(self, inputs):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def output_shapes(self) -> "{<port>: <shape>}":
-        self._assert_connected()
-        return self._output_shapes()
-
-    def _output_shapes(self) -> "{<port>: <shape>}":
-        raise NotImplementedError("Please use a subclass of Layer")
-
     def _reshape(self, in_port, sym_tensor):
         expected = self._expected_shape(in_port)
-        if expected == self.input_shapes[in_port]:
-            return sym_tensor
-        else:
-            return sym_tensor.reshape(expected)
+
+        if expected is not None:
+            return ifelse(T.eq(expected, sym_tensor.shape),
+                          sym_tensor,
+                          sym_tensor.reshape(expected))
+
+        max_dims = self._reshape_dims()
+        if sym_tensor.ndim > max_dims:
+            sym_shp = sym_tensor.shape
+            if max_dims == 2:
+                shp = (sym_shp[0], -1)
+            if max_dims == 3:
+                shp = (sym_shp[0], sym_shp[1], -1)
+
+            return sym_tensor.reshape(shp, ndim=max_dims)
+
+        return sym_tensor
+
+    def _reshape_dims(self):
+        return 4
 
     def _expected_shape(self, in_port):
-        self._assert_connected()
-        return self.input_shapes[in_port]
-
-    def _not_satisfied_input_ports(self, given_ports):
-        return list(filter(lambda l: l not in given_ports,
-                           self.input_ports()))
-
-    def _not_found_in_input_ports(self, given_ports):
-        return list(filter(
-            lambda g: g not in self.input_ports(),
-            given_ports
-        ))
-
-    def _are_all_inputs_ports_satisfied_by(self, given_ports):
-        return len(self._not_satisfied_input_ports(given_ports)) == 0 \
-            and len(self._not_found_in_input_ports(given_ports)) == 0
-
-    def _update_connection_status(self):
-        self._connected = self._are_all_inputs_ports_satisfied_by(
-            self.input_shapes.keys())
-
-    def _assert_connected(self):
-        if not self._connected:
-            raise NotConnectedException(
-                "{:} is not connected. The following channels are not"
-                " connected: {:}"
-                .format(type(self).__name__,
-                        self._not_connected_input_ports()))
-
-    def _not_connected_input_ports(self):
-        return list(filter(lambda p: p not in self.input_shapes,
-                           self.input_ports()))
+        return None
 
     @classmethod
     def construct_subclass(cls, value, ctx):
@@ -284,16 +236,6 @@ class Layer(ConfigObject):
 
 
 class OneInOneOutLayer(Layer):
-    def set_input_shape(self, input_shape):
-        self.set_input_shapes({"in": input_shape})
-
-    @property
-    def input_shape(self):
-        return self.input_shapes["in"]
-
-    def output_shape(self):
-        return self.output_shapes()["out"]
-
     def output(self, input):
         return self.outputs({"in": input})["out"]
 
@@ -310,7 +252,6 @@ class WithParameterLayer(Layer):
         self.parameters = []
 
     def parameter_shape(self, param: 'Parameter|str'):
-        self._assert_connected()
         if type(param) == str:
             param = self._param_by_name(param)
 
@@ -335,7 +276,6 @@ class WithParameterLayer(Layer):
             self.fill_parameter(p)
 
     def loss(self):
-        self._assert_connected()
         return T.as_tensor_variable(0)
 
 
@@ -358,9 +298,10 @@ class ConvLayer(WithParameterLayer, OneInOneOutLayer):
     # `valid` or `full`. Default is `valid`. see scipy.signal.convolve2d
     border_mode = OPTIONAL(EITHER("valid", "full"), default="valid")
 
+    input_shape = REQUIRED(Shape(dims=4), doc="""Shape of the input tensor""")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
         self.parameters = [self.bias, self.weight]
 
     def _parameter_shape(self, param):
@@ -371,7 +312,7 @@ class ConvLayer(WithParameterLayer, OneInOneOutLayer):
 
     def filter_shape(self):
         return (self.num_feature_maps,
-                chans(self.input_shapes["in"]),
+                chans(self.input_shape),
                 self.kernel_h,
                 self.kernel_w)
 
@@ -379,37 +320,12 @@ class ConvLayer(WithParameterLayer, OneInOneOutLayer):
         shp = self.filter_shape()
         return shp[0],
 
-    def _output_shapes(self):
-        input_shape = self.input_shapes["in"]
-        batch_size = bs(input_shape)
-        channels = self.num_feature_maps  # * chans(input_shape)
-        miss_h = self.kernel_h - 1
-        miss_w = self.kernel_w - 1
-
-        # maximum possible step, if stride_X = 1.
-        if self.border_mode == "valid":
-            max_steps_h = h(input_shape) - miss_h
-            max_steps_w = w(input_shape) - miss_w
-        elif self.border_mode == "full":
-            max_steps_h = h(input_shape) + miss_h
-            max_steps_w = w(input_shape) + miss_w
-
-        height = max_steps_h // self.stride_h
-        width = max_steps_w // self.stride_v
-
-        if max_steps_h % self.stride_h != 0:
-            height += 1
-        if max_steps_w % self.stride_v != 0:
-            width += 1
-
-        return {"out": (batch_size, channels, height, width)}
-
     def _outputs(self, inputs):
         assert self.weight.tensor is not None
 
         conv_out = T.nnet.conv2d(
             input=inputs["in"],
-            image_shape=self.input_shapes["in"],
+            image_shape=self.input_shape,
             filters=self.weight.shared,
             filter_shape=self.filter_shape(),
             subsample=(self.stride_h, self.stride_v),
@@ -423,30 +339,30 @@ def _to_2d_shape(shp):
     return bs(shp), chans(shp)*h(shp)*w(shp)
 
 
+def _to_Nd_shape(shp, n):
+    return shp[0:n-1] + (-1, )
+
+
 class InnerProductLayer(WithParameterLayer):
     n_units = REQUIRED(int)
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
+    input_shape = REQUIRED(Shape(), doc="Shape of the input tensor.")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.parameters = [self.weight, self.bias]
 
     def _parameter_shape(self, param: Parameter):
-        self._assert_connected()
-        shp = self.input_shapes["in"]
+        shp = self.input_shape
         in_size = chans(shp)*h(shp)*w(shp)
         if param == self.weight:
             return in_size, self.n_units
         elif param == self.bias:
             return self.n_units,
 
-    def _expected_shape(self, in_port):
-        return _to_2d_shape(self.input_shapes['in'])
-
-    def _output_shapes(self):
-        batch_size = bs(self.input_shapes)
-        return {"out": (batch_size, self.n_units)}
+    def _reshape_dims(self):
+        return 2
 
     def _outputs(self, inputs):
         return T.dot(inputs["in"], self.weight.shared) + self.bias.shared
@@ -455,20 +371,6 @@ class InnerProductLayer(WithParameterLayer):
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
     ignore_border = OPTIONAL(bool, default=False)
-
-    def _output_shapes(self):
-        input_shape = self.input_shapes["in"]
-        batch_size = bs(input_shape)
-        channels = chans(input_shape)
-        width = w(input_shape) // w(self.poolsize)
-        height = h(input_shape) // h(self.poolsize)
-        if not self.ignore_border:
-            if w(input_shape) % w(self.poolsize) != 0:
-                width += 1
-            if h(input_shape) % h(self.poolsize) != 0:
-                height += 1
-
-        return {"out": (batch_size, channels, height, width)}
 
     def _outputs(self, inputs):
         return theano.tensor.signal.downsample.max_pool_2d(
@@ -504,16 +406,6 @@ class ConcatLayer(Layer):
     in_ports = REPEAT(str)
     axis = REQUIRED(int)
 
-    def _output_shapes(self):
-        assert self.input_shapes != {}
-
-        joined_axis = 0
-        for in_shp in self.input_shapes.values():
-            joined_axis += in_shp[self.axis]
-        shp = list(next(iter(self.input_shapes.values())))
-        shp[self.axis] = joined_axis
-        return {"out": tuple(shp)}
-
     def input_ports(self):
         return tuple(self.in_ports)
 
@@ -545,8 +437,8 @@ class TanHLayer(ActivationLayer):
 
 
 class SoftmaxLayer(ActivationLayer):
-    def _expected_shape(self, in_port):
-        return _to_2d_shape(self.input_shape)
+    def _reshape_dims(self):
+        return 2
 
     def _outputs(self, inputs):
         return T.nnet.softmax(inputs["in"])
@@ -632,10 +524,10 @@ to_name=relu#1, to_port=None)
 
 
 def format_ports(ports):
-            if len(ports) == 0:
-                return "`None`"
-            else:
-                return ",".join(["`{:}`".format(p) for p in ports])
+    if len(ports) == 0:
+        return "`None`"
+    else:
+        return ",".join(["`{:}`".format(p) for p in ports])
 
 
 class Connection(ConfigObject):

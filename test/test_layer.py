@@ -36,13 +36,6 @@ class ExampleLifeCycle(object):
     METHODS_TYPES = [
         ('input_ports', tuple, [], {}),
         ('output_ports', tuple, [], {}),
-        ('output_shapes', dict, [], {}),
-        ('clear_connections', type(None), [], {})
-    ]
-    METHODS_ONLY_AVAILABLE_IF_CONNECTED = [
-        ('output_shapes', [], {}),
-        ('clear_connections', [], {}),
-        ('outputs', [{}], {})
     ]
 
     def __init__(self, layer: Layer, test: TestCase, input_shapes: dict=None):
@@ -56,47 +49,16 @@ class ExampleLifeCycle(object):
 
     def simulate(self):
         self.test_types()
-        self.t.assert_(not self.layer.connected())
-        self.methods_throw_exception_if_not_connected()
-
-        self.set_up_connection()
-        self.t.assert_(self.layer.connected())
-        self.test_types()
         self.t.assertRaises(KeyError, self.layer.outputs, {})
 
         self.fill_parameters()
         fn = self.compile_theano_fn()
         outputs = self.compute_outputs(fn)
-        self.compare_output_shapes(outputs)
-
-        self.t.assert_(self.layer.connected())
-        self.layer.clear_connections()
-        self.t.assert_(not self.layer.connected())
-
-    def methods_throw_exception_if_not_connected(self):
-        for method, args, kwargs in self.METHODS_ONLY_AVAILABLE_IF_CONNECTED:
-            self.t.assertRaises(NotConnectedException,
-                                getattr(self.layer, method),
-                                *args, **kwargs)
 
     def test_types(self):
-        method_unavailbe = list(map(lambda m: m[0],
-                                    self.METHODS_ONLY_AVAILABLE_IF_CONNECTED))
-
         for method, tpe, args, kwargs in self.METHODS_TYPES:
-            if method not in method_unavailbe:
-                callabe = getattr(self.layer, method)
-                self.t.assertEqual(type(callabe(*args, **kwargs)), tpe)
-
-        if self.layer.connected():
-            for port, shape in self.layer.output_shapes().items():
-                self.t.assertEqual(type(shape), tuple, msg=port)
-
-        for port, shape in self.layer.input_shapes.items():
-            self.t.assertEqual(type(shape), tuple, msg=port)
-
-    def set_up_connection(self):
-        self.layer.set_input_shapes(self.input_shapes)
+            callabe = getattr(self.layer, method)
+            self.t.assertEqual(type(callabe(*args, **kwargs)), tpe)
 
     def fill_parameters(self):
         pass
@@ -115,24 +77,11 @@ class ExampleLifeCycle(object):
         raw_output = callabe()
         return dict(zip(sorted(self.layer.output_ports()), raw_output))
 
-    def compare_output_shapes(self, outputs: dict):
-        for port, out in outputs.items():
-            self.t.assertEqual(out.shape, self.layer.output_shapes()[port],
-                               self.input_shapes)
-
 
 class WithParameterExampleLifeCycle(ExampleLifeCycle):
     METHODS_TYPES = ExampleLifeCycle.METHODS_TYPES + [
         ('fill_parameters', type(None), [], {}),
-        ('parameter_shape', tuple, ['foo'], {}),
     ]
-
-    METHODS_ONLY_AVAILABLE_IF_CONNECTED = \
-        ExampleLifeCycle.METHODS_ONLY_AVAILABLE_IF_CONNECTED + [
-            ('fill_parameters', [], {}),
-            ('parameter_shape', ['foo'], {}),
-            ('loss', [], {}),
-        ]
 
     def fill_parameters(self):
         self.layer.fill_parameters()
@@ -152,19 +101,9 @@ class TestLayer(TestCase):
 
         # default state is to be not connected.
         self.assertFalse(l._connected)
-        # All this functions are only callable, if the layer is connected.
-        self.assertRaises(NotConnectedException, l.output_shapes)
-        self.assertRaises(NotConnectedException, l.clear_connections)
-        self.assertRaises(NotConnectedException, l.outputs, {})
-
-        # setup the connection
-        l.set_input_shapes({"in": (2, 3, 16, 16)})
-        # Now we should be connected
-        self.assertTrue(l._connected)
 
         self.assertRaises(KeyError, l.outputs, {})
-        self.assertNotImplemented(l.outputs, {"in": []})
-        self.assertNotImplemented(l.output_shapes)
+        self.assertNotImplemented(l.outputs, {"in": T.matrix("foo")})
 
     def assertNotImplemented(self, callable, *args, **kwargs):
         self.assertRaisesRegex(
@@ -231,6 +170,12 @@ class TestShape(TestCase):
             s.construct,
             [5, 2, 3, 4, 4],
             ctx=InitContext(raise_exceptions=True))
+        self.assertRaisesRegexp(
+            ConfigException,
+            re.escape("No Shape given."),
+            s.construct,
+            None,
+            ctx=InitContext(raise_exceptions=True))
 
     def test_max_dims(self):
         s = Shape(max_dims=2)
@@ -292,6 +237,7 @@ class TestConvolutionLayer(TestCase):
                     border_mode=p[bm],
                     weight=Parameter(name=name + "#weight"),
                     bias=Parameter(name=name + "#bias"),
+                    input_shape=(1, 3, 16, 16)
                 )
             )
         self.simple_conv_layer = self.conv_layers[0]
@@ -304,7 +250,8 @@ class TestConvolutionLayer(TestCase):
             kernel_w=5,
             kernel_h=5,
             weight=Parameter(name="weight"),
-            bias=Parameter(name="weight")
+            bias=Parameter(name="weight"),
+            input_shape=(1, 3, 50, 50)
         )
         self.assertEqual(conv.name, "conv#test_init")
         self.assertEqual(conv.type, "Conv")
@@ -320,9 +267,9 @@ class TestConvolutionLayer(TestCase):
             kernel_w=5,
             kernel_h=5,
             weight=Parameter(name="conv#test#weight"),
-            bias=Parameter(name="conv#test#bias")
-        )
-        conv.set_input_shapes({"in": (32, 3, 200, 200)})
+            bias=Parameter(name="conv#test#bias"),
+            input_shape=(32, 3, 200, 200))
+
         # bs, c, h, w
         self.assertEqual(
             conv.parameter_shape(conv.weight),
@@ -334,52 +281,18 @@ class TestConvolutionLayer(TestCase):
             (32, 3, 5, 5)
         )
 
-    def test_output_shape_manuel(self):
-        conv = self.simple_conv_layer
-        input_shape = (32, 3, 128, 128)
-        conv.set_input_shapes({"in": input_shape})
-        self.assertEqual(
-            conv.output_shape(),
-            (32, conv.num_feature_maps,
-             128-conv.kernel_h+1, 128-conv.kernel_w+1))
-        conv.clear_connections()
-
-    def test_output_shape_auto(self):
-        input_shapes = [(3, 1, 16, 16),
-                        (1, 3, 32, 32),
-                        (1, 2, 128, 128),
-                        (1, 1, 21, 21)]
-        for input_shape in input_shapes:
-            for conv in self.conv_layers:
-                conv.set_input_shapes({"in": input_shape})
-                conv.fill_parameters()
-                filter_shape = conv.filter_shape()
-                self.assertEqual(bs(filter_shape), conv.num_feature_maps)
-                self.assertEqual(chans(filter_shape), chans(input_shape))
-                x = theano.shared(GaussianFiller().fill(input_shape))
-                conv_out = conv.outputs({"in": x})
-                f = theano.function([], conv_out["out"])
-                expected_output_shape = conv.output_shape()
-
-                self.assertEqual(f().shape,
-                                 expected_output_shape,
-                                 "input_shape was: {!s},\n"
-                                 "ConvolutionLayer.name: {!r}"
-                                 .format(input_shape, conv.name))
-                conv.clear_connections()
-
     def test_outputs(self):
         conv = self.simple_conv_layer
-        input_shape = (4, 3, 16, 16)
-        conv.set_input_shapes({"in": input_shape})
+        input_shape = conv.input_shape
         conv.fill_parameters()
         x = theano.shared(self.gauss.fill(input_shape))
-        conv_out = conv.outputs({"in": x})
+        conv_out = conv.output(x)
+        self.assertTrue(type(conv_out), np.array)
 
     def test_life_cycle(self):
         for l in self.conv_layers:
             life_cycle = WithParameterExampleLifeCycle(
-                l, self,  input_shapes={"in": (1, 3, 32, 32)})
+                l, self,  input_shapes={"in": l.input_shape})
             life_cycle.simulate()
 
 
@@ -403,14 +316,10 @@ class TestActivationLayers(TestCase):
         for layer_class in self.layer_classes:
             layer = create_layer(layer_class)
 
-            layer.set_input_shape(dummy.output_shapes()["out"])
             dummy_out = dummy.outputs({})["out"]
             out = layer.output(dummy_out)
             f = theano.function([], [dummy_out, out])
             dummpy_out_real, out_real = f()
-            self.assertEqual(dummpy_out_real.shape,
-                             dummy.output_shapes()["out"])
-            self.assertEqual(out_real.shape, layer.output_shape())
 
     def test_life_cycle(self):
         for layer_cls in self.layer_classes:
@@ -443,19 +352,17 @@ class TestInnerProductLayer(TestCase):
         layer = InnerProductLayer(name="innerprod", type="InnerProduct",
                                   n_units=20,
                                   weight=Parameter(name="weight"),
-                                  bias=Parameter(name="bias"))
+                                  bias=Parameter(name="bias"),
+                                  input_shape=(1, 3, 28, 28))
 
-        WithParameterExampleLifeCycle(layer, self).simulate()
+        WithParameterExampleLifeCycle(layer, self,
+                                      {"in": (1, 3, 28, 28)}).simulate()
 
 
 class TestConcatLayer(TestCase):
     def test_concat_layer(self):
         join = ConcatLayer(name="join", in_ports=["foo", "bar"], axis=2)
         in_shape = (1, 3, 20, 20)
-        join.set_input_shapes({"foo": in_shape, "bar": in_shape})
-
-        self.assertTupleEqual(join.output_shapes()["out"],
-                              (1, 3, 40, 20))
 
         rand_foo = np.random.sample(in_shape)
         rand_bar = np.random.sample(in_shape)
