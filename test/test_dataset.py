@@ -67,7 +67,9 @@ class TestMNISTDataset(TestCase):
                 self.assertLessEqual(end, train.n_examples())
 
     def test_handels_corruption(self):
-        with open(MNISTDataset._local_file, 'w+') as f:
+        local_file = MNISTDataset._local_file
+        os.makedirs(os.path.dirname(local_file), exist_ok=True)
+        with open(local_file, 'w+') as f:
             f.write("bla")
 
         dataset = MNISTDataset()
