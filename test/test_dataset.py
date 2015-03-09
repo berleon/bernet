@@ -36,7 +36,8 @@ class TestMNISTDataset(TestCase):
             MNISTDataset._url = "file://" + self.tmp_abs_path
 
     def tearDown(self):
-        os.remove(self.tmp_abs_path)
+        if hasattr(self, 'tmp_abs_path') and os.path.exists(self.tmp_abs_path):
+            os.remove(self.tmp_abs_path)
 
     def test_mnist_dataset(self):
         dataset = MNISTDataset()
