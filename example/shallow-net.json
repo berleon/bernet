@@ -4,7 +4,8 @@
     {
       "type": "InnerProduct",
       "name": "ip#1",
-      "n_units": 764,
+      "n_units": 256,
+      "input_shape": [1, 1, 28, 28],
       "weight": {
         "name": "ip#1_weight",
         "shape": [1, 1, 256, 764]
@@ -22,6 +23,7 @@
       "type": "InnerProduct",
       "name": "ip#2",
       "n_units": 10,
+      "input_shape": [1, 1, 1, 256],
       "weight": {
         "name": "ip#2_weight",
         "shape": [1, 1, 256, 10]
