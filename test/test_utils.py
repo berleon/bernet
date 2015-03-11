@@ -52,6 +52,15 @@ class TestUtils(TestCase):
         self.assertEqual(h((5, 1, 14, 4)), 14)
         self.assertEqual(w((5, 1, 4, 40)), 40)
 
-    def test_tensor_from_shape(self):
-        t = tensor_from_shape("test", (20, 20))
+    def test_symbolic_tensor_from_dims(self):
+        t = symbolic_tensor_from_dims("test", 2)
         self.assertEqual(type(t), type(T.matrix()))
+
+    def test_symbolic_tensor_from_shape(self):
+        t = symbolic_tensor_from_shape("test", (20, 20))
+        self.assertEqual(type(t), type(T.matrix()))
+
+    def test_shared_like(self):
+        array = theano.shared(np.ones((10, 10)), "array")
+        t = shared_like(array, "t")
+        self.assertTupleEqual(t.get_value().shape, array.get_value().shape)

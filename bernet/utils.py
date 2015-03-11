@@ -13,9 +13,10 @@
 # limitations under the License.
 import hashlib
 import operator
-
 import urllib.request
 from functools import reduce
+
+import numpy as np
 import theano
 import theano.tensor as T
 
@@ -90,7 +91,23 @@ def size(shape):
     return reduce(operator.mul, shape, 1)
 
 
-def tensor_from_shape(name, shp):
+def shared_tensor_from_dims(name, dims):
+    shape = (1, ) * dims
+    return theano.shared(np.zeros(shape), name=name)
+
+
+def symbolic_tensor_from_dims(name, dims):
+    tpe = T.TensorType(dtype=theano.config.floatX,
+                       broadcastable=(False,)*dims)
+    return tpe(name)
+
+
+def symbolic_tensor_from_shape(name, shp):
     floatX = theano.config.floatX
     tpe = T.TensorType(dtype=floatX, broadcastable=(False,)*len(shp))
     return tpe(name)
+
+
+def shared_like(shared_tensor, name, init=0):
+    return theano.shared(np.zeros_like(shared_tensor.get_value()) + init,
+                         name="{}_{}".format(shared_tensor.name, name))
