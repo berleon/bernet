@@ -34,9 +34,9 @@
       }
     },
     {
-      "type": "TanH",
-      "name": "tanh#2"
+      "type": "Softmax",
+      "name": "softmax#1"
     }
   ],
-  "connections": ["ip#1 -> tanh#1 -> ip#2 -> tanh#2"]
+  "connections": ["ip#1 -> tanh#1 -> ip#2 -> softmax#1"]
 }

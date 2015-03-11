@@ -205,10 +205,10 @@ class TestNetwork(TestCase):
             )
             self.assertDictEqual(
                 net.free_out_ports(),
-                {'tanh#2': ['out']}
+                {'softmax#1': ['out']}
             )
 
             out = net.forward(
                 {'ip#1': {'in': np.random.sample((1, 1, 28, 28))}})
 
-            self.assertTupleEqual(out["tanh#2"]["out"].shape, (1, 10))
+            self.assertTupleEqual(out["softmax#1"]["out"].shape, (1, 10))
