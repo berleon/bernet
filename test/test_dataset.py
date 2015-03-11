@@ -15,7 +15,10 @@ import os
 import shutil
 import tempfile
 from unittest import TestCase
-from bernet.dataset import MNISTDataset, Dataset
+
+import numpy as np
+import numpy.testing
+from bernet.dataset import MNISTDataset, Dataset, GeneratedDataset, LineDataset
 from bernet.utils import size
 
 
@@ -76,3 +79,29 @@ class TestMNISTDataset(TestCase):
         train_batch = next(dataset.train())
         self.assertEqual(size(train_batch.data().shape[1:2]),
                          size((28, 28)))
+
+
+class TestGeneratedDataset(TestCase):
+    def test_generated_dataset(self):
+        m = 5
+        c = 3
+
+        def line(x):
+            return m*x + c
+        dataset = GeneratedDataset(lambda x: x, line, (10, 10))
+        train = next(dataset.train())
+        self.assertTrue(np.all(line(train.data()) == train.labels()))
+
+
+class TestLineDataset(TestCase):
+    def test_line_dataset(self):
+        m = 5
+        c = 3
+
+        def line(x):
+            return m*x + c
+        dataset = LineDataset((100, 1), m=m, c=c)
+        train = next(dataset.train())
+        numpy.testing.assert_array_almost_equal(
+            line(train.data()).reshape((-1)),
+            train.labels())

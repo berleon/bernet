@@ -14,6 +14,8 @@
 import gzip
 import os
 import pickle
+
+import numpy as np
 import bernet.utils
 
 
@@ -31,9 +33,9 @@ class Batch(object):
     def labels(self):
         return self._labels
 
-    def minibatch_idx(self, n=128):
-        for i in range(0, self.n_examples()//n, n):
-            yield (i, i+n)
+    def minibatch_idx(self, batch_size=64):
+        return zip(range(0, self.n_examples() - batch_size, batch_size),
+                   range(batch_size, self.n_examples(), batch_size))
 
 
 class Dataset(object):
@@ -44,6 +46,12 @@ class Dataset(object):
         raise NotImplementedError("")
 
     def validate(self) -> Batch:
+        raise NotImplementedError("")
+
+    def data_dims(self):
+        raise NotImplementedError("")
+
+    def labels_dims(self):
         raise NotImplementedError("")
 
 
@@ -74,6 +82,12 @@ class MNISTDataset(Dataset):
         with open(self._local_file, "wb+") as f:
             bernet.utils.download(self._url, f)
 
+    def labels_dims(self):
+        return 1
+
+    def data_dims(self):
+        return 2
+
     def train(self) -> Batch:
         yield Batch(self._train_set[0], self._train_set[1])
 
@@ -82,3 +96,44 @@ class MNISTDataset(Dataset):
 
     def test(self) -> Batch:
         yield Batch(self._test_set[0], self._test_set[1])
+
+
+class GeneratedDataset(Dataset):
+    def __init__(self, data_func, label_func, shape, seed=None):
+        self.data_func = data_func
+        self.label_func = label_func
+        self.shape = shape
+        self.seed = seed
+
+    def labels_dims(self):
+        return 1
+
+    def data_dims(self):
+        return len(self.shape)
+
+    def _random(self):
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        return np.random.sample(self.shape)
+
+    def _generate_batch(self):
+        rand = self._random()
+        data = self.data_func(rand)
+        return Batch(data, labels=self.label_func(data))
+
+    def train(self) -> Batch:
+        yield self._generate_batch()
+
+    def test(self) -> Batch:
+        yield self._generate_batch()
+
+    def validate(self) -> Batch:
+        yield self._generate_batch()
+
+
+class LineDataset(GeneratedDataset):
+    def __init__(self, shape, m=5, c=3, seed=None):
+        super().__init__(lambda x: x,
+                         lambda x: np.reshape(m*x + c, (-1,)),
+                         shape,
+                         seed=seed)
