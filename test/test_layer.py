@@ -319,12 +319,21 @@ class TestActivationLayers(TestCase):
             dummy_out = dummy.outputs({})["out"]
             out = layer.output(dummy_out)
             f = theano.function([], [dummy_out, out])
-            dummpy_out_real, out_real = f()
+            f()
 
     def test_life_cycle(self):
         for layer_cls in self.layer_classes:
             life_cycle = ExampleLifeCycle(create_layer(layer_cls), self)
             life_cycle.simulate()
+
+
+class TestSoftmaxLayer(TestCase):
+    def test_softmax_layer(self):
+        softmax = SoftmaxLayer(name="softmax")
+        x = T.matrix('x')
+        fn = theano.function([x], softmax.output(x))
+        out = fn(np.random.random((200, 200)))
+        np.testing.assert_almost_equal(out.sum(axis=1), np.ones(200,))
 
 
 class TestPoolingLayer(TestCase):
