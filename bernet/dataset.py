@@ -56,7 +56,8 @@ class Dataset(object):
 
 
 class MNISTDataset(Dataset):
-    _url = "http://deeplearning.net/data/mnist/mnist.pkl.gz"
+    _url = "https://github.com/mnielsen/neural-networks-and-deep-learning/" \
+           "blob/master/data/mnist.pkl.gz?raw=true"
     _local_file = os.path.expanduser("~/.bernet/mnist/mnist.pkl.gz")
 
     def __init__(self):
