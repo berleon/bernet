@@ -19,19 +19,22 @@ from unittest import TestCase
 import subprocess
 from os.path import join, abspath, dirname
 import sys
+from nose.plugins.attrib import attr
 
 
 class TestExamples(TestCase):
+    @attr('slow')
     def test_examples(self):
         dir = dirname(__file__)
         examples = abspath(join(dir, "../example/*.py"))
         for py_file in glob.glob(examples):
             env = os.environ
             env["PYTHONPATH"] = ":".join(sys.path)
-            proc = subprocess.Popen(py_file, env=env,
-                                    stdout=subprocess.PIPE,
+            proc = subprocess.Popen(py_file, env=env, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE)
             out, err = proc.communicate()
             self.assertEqual(proc.returncode, 0,
                              msg="Example {} failed\nstdout:\n{}\nstderr:\n{}"
-                             .format(py_file, out, err))
+                             .format(py_file,
+                                     out.decode('utf-8'),
+                                     err.decode('utf-8')))

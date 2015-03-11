@@ -2,7 +2,7 @@
 
 set -e
 
-./run_tests.sh
+./run_tests.sh --fast
 (cd docs;
 make html)
 

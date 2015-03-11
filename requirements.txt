@@ -7,4 +7,4 @@ scipy==0.15.1
 simplejson==3.6.5
 sphinx-rtd-theme==0.1.6
 Sphinx==1.2.3
-Theano==0.6.0
+git+https://github.com/Theano/Theano.git@c1209105d6d7b95429e88008a365682409222bc2#egg=Theano
