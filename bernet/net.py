@@ -23,7 +23,7 @@ from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, \
     SUBCLASS_OF, EITHER
 from bernet.layer import Layer, WithParameterLayer, format_ports, \
     ConnectionsParser
-from bernet.loss import NegativeLogLikelihood, GaussLoss
+from bernet.loss import NegativeLogLikelihood, MSE
 from bernet.utils import symbolic_tensor_from_shape
 
 
