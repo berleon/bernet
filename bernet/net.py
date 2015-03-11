@@ -168,7 +168,6 @@ class Network(ConfigObject):
                 for p in layer.input_ports():
                     assert p in inputs_for_layer
 
-                self._setup_parameters(layer)
                 outputs[layer.name] = layer.outputs(inputs_for_layer)
                 for con in self._connections_from(layer):
                     inputs[con.to_name][con.to_port] = \
@@ -273,9 +272,62 @@ class Network(ConfigObject):
                 return l
         return None
 
-    def cost(self, data, labels):
-        pass
+    def parameters(self):
+        params = []
+        for layer in self.layers:
+            if issubclass(type(layer), WithParameterLayer):
+                params.extend(layer.parameters)
+        return params
+
+    def parameters_as_shared(self):
+        return [p.shared for p in self.parameters()]
 
 
-class OneInOneOutNetwork(Network):
-    pass
+class SimpleNetwork(Network):
+    loss = OPTIONAL(EITHER(NegativeLogLikelihood, MSE),
+                    default=NegativeLogLikelihood(),
+                    doc="")
+
+    def free_in_port(self):
+        assert len(self.free_in_ports()) == 1
+        return next(iter(self.free_in_ports().items()))
+
+    def free_out_port(self):
+        assert len(self.free_out_ports()) == 1
+        return next(iter(self.free_out_ports().items()))
+
+    def net_output(self, input: 'symbolic tensor'):
+        in_layer, in_ports = self.free_in_port()
+        out_layer, out_ports = self.free_out_port()
+        in_port = in_ports[0]
+        out_port = out_ports[0]
+        return self.layer_outputs(
+            {in_layer: {in_port: input}}
+        )[out_layer][out_port]
+
+    def get_error(self, x, y):
+        out = self.net_output(x)
+        return self.get_error_with_output(out, y)
+
+    def get_error_with_output(self, out, labels):
+        pred_labels = T.argmax(out, axis=1)
+        return T.sum(T.neq(pred_labels, labels)) / labels.shape[0]
+
+    def get_loss_with_output(self, out, labels):
+        return self.loss.loss(out, labels)
+
+    def get_loss(self, x, y):
+        out = self.net_output(x)
+        return self.get_loss_with_output(out, y)
+
+    def confusion_matrix(self, batch, n_examples=1000):
+        x = symbolic_tensor_from_shape('x', batch.data().shape)
+        y = self.net_output(x)
+        true_labels = batch.labels()[:n_examples]
+        fn = theano.function([x], [y])
+        data = batch.data()[:n_examples, :]
+        pred_labels, = fn(data)
+        pred_labels = np.argmax(pred_labels, axis=1)
+        n = np.unique(pred_labels).size
+        return np.bincount(
+            n * (true_labels) + (pred_labels), minlength=n*n).reshape(n, n)
