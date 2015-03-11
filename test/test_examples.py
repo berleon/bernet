@@ -26,9 +26,12 @@ class TestExamples(TestCase):
         dir = dirname(__file__)
         examples = abspath(join(dir, "../example/*.py"))
         for py_file in glob.glob(examples):
-            print(join(sys.path))
             env = os.environ
             env["PYTHONPATH"] = ":".join(sys.path)
-            subprocess.check_call(py_file, shell=True, env=env,
-                                  stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL)
+            proc = subprocess.Popen(py_file, env=env,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+            out, err = proc.communicate()
+            self.assertEqual(proc.returncode, 0,
+                             msg="Example {} failed\nstdout:\n{}\nstderr:\n{}"
+                             .format(py_file, out, err))
