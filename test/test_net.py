@@ -172,6 +172,12 @@ class TestNetwork(TestCase):
         f = theano.function([], [outs["softmax#1"]["out"]])
         self.assertTupleEqual(f()[0].shape, (1, 64))
 
+    def test_parameters_not_changing(self):
+        net = self.complex_net
+        for p1, p2 in zip(net.parameters_as_shared(),
+                          net.parameters_as_shared()):
+            self.assertEqual(p1, p2)
+
     @unittest.skip
     def test_forward(self):
         net = self.simple_network

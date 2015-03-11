@@ -19,10 +19,12 @@ import theano
 import theano.tensor as T
 
 from bernet import utils
-from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, SUBCLASS_OF
-from bernet.layer import Layer, Connection, WithParameterLayer, format_ports, \
+from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, \
+    SUBCLASS_OF, EITHER
+from bernet.layer import Layer, WithParameterLayer, format_ports, \
     ConnectionsParser
-from bernet.utils import tensor_from_shape
+from bernet.loss import NegativeLogLikelihood, GaussLoss
+from bernet.utils import symbolic_tensor_from_shape
 
 
 class Network(ConfigObject):
@@ -86,6 +88,9 @@ class Network(ConfigObject):
 
         self._setup_connections()
 
+        for layer in self.layers:
+            self._setup_parameters(layer)
+
     def _get_data(self, file_name, url, sha256_expected):
         with open(file_name, "w+b") as f:
             utils.download(url, f)
@@ -102,12 +107,10 @@ class Network(ConfigObject):
         self._theano_order_ins = []
         theano_ins = []
         free_in_ports_tensors = defaultdict(dict)
-
         for layer_name, in_ports in self.layer_free_in_ports.items():
             for in_port in in_ports:
                 name = "{:}[{:}]".format(layer_name, in_port)
                 tensor = T.tensor4(name, dtype=theano.config.floatX)
-
                 theano_ins.append(tensor)
                 free_in_ports_tensors[layer_name][in_port] = tensor
                 self._theano_order_ins.append((layer_name, in_port))
@@ -117,13 +120,11 @@ class Network(ConfigObject):
     def _compile(self):
         layer_outs, theano_ins = self._build_symbolic_outputs()
         self._theano_order_outs = []
-
         theano_outs = []
         for layer_name, out_ports in self.layer_free_out_ports.items():
             for out_port in out_ports:
                 theano_outs.append(layer_outs[layer_name][out_port])
                 self._theano_order_outs.append((layer_name, out_port))
-
         self._func = theano.function(theano_ins, theano_outs)
 
     def _from_theano_outs(self, theano_outs: list) -> \
@@ -134,7 +135,6 @@ class Network(ConfigObject):
         for (layer_name, port_name), out in \
                 zip(self._theano_order_outs, theano_outs):
             dict_out[layer_name][port_name] = out
-
         return dict_out
 
     def _to_theano_ins(self, theano_ins):
@@ -200,7 +200,7 @@ class Network(ConfigObject):
             for param in layer.parameters:
                 if self.data.get(param.name) is not None:
                     param.tensor = self.data[param.name]
-                else:
+                elif param.tensor is None:
                     layer.fill_parameter(param)
 
     def _connections_from(self, layer):
