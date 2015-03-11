@@ -57,9 +57,9 @@ class Rprop(Optimizator):
                     self.max_step,
                     T.maximum(
                         self.min_step,
-                        step_tm1*(T.eq(test, 0)
-                                  + same * self.step_increase
-                                  + diff * self.step_decrease)))
+                        step_tm1*(T.eq(test, 0) +
+                                  same * self.step_increase +
+                                  diff * self.step_decrease)))
 
             # grad = grad - diff * grad
             yield param, param - T.sgn(grad) * step

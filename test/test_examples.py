@@ -30,4 +30,5 @@ class TestExamples(TestCase):
             env = os.environ
             env["PYTHONPATH"] = ":".join(sys.path)
             subprocess.check_call(py_file, shell=True, env=env,
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
