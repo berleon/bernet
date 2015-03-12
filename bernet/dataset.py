@@ -19,15 +19,15 @@ import numpy as np
 import bernet.utils
 
 
-class Batch(object):
+class Epoche(object):
     def __init__(self, data, labels=None):
         self._data = data
         self._labels = labels
 
-    def n_examples(self):
+    def n_examples(self) -> int:
         return self._data.shape[0]
 
-    def data(self):
+    def data(self) -> 'ndarray':
         return self._data
 
     def labels(self):
@@ -39,19 +39,19 @@ class Batch(object):
 
 
 class Dataset(object):
-    def train(self) -> Batch:
+    def train_epoch(self) -> Epoche:
         raise NotImplementedError("")
 
-    def test(self) -> Batch:
+    def test_epoch(self) -> Epoche:
         raise NotImplementedError("")
 
-    def validate(self) -> Batch:
+    def validate_epoch(self) -> Epoche:
         raise NotImplementedError("")
 
-    def data_dims(self):
+    def data_dims(self) -> int:
         raise NotImplementedError("")
 
-    def labels_dims(self):
+    def labels_dims(self) -> int:
         raise NotImplementedError("")
 
 
@@ -89,14 +89,14 @@ class MNISTDataset(Dataset):
     def data_dims(self):
         return 2
 
-    def train(self) -> Batch:
-        yield Batch(self._train_set[0], self._train_set[1])
+    def train_epoch(self) -> Epoche:
+        yield Epoche(self._train_set[0], self._train_set[1])
 
-    def validate(self) -> Batch:
-        yield Batch(self._valid_set[0], self._valid_set[1])
+    def validate_epoch(self) -> Epoche:
+        yield Epoche(self._valid_set[0], self._valid_set[1])
 
-    def test(self) -> Batch:
-        yield Batch(self._test_set[0], self._test_set[1])
+    def test_epoch(self) -> Epoche:
+        yield Epoche(self._test_set[0], self._test_set[1])
 
 
 class GeneratedDataset(Dataset):
@@ -120,15 +120,15 @@ class GeneratedDataset(Dataset):
     def _generate_batch(self):
         rand = self._random()
         data = self.data_func(rand)
-        return Batch(data, labels=self.label_func(data))
+        return Epoche(data, labels=self.label_func(data))
 
-    def train(self) -> Batch:
+    def train_epoch(self) -> Epoche:
         yield self._generate_batch()
 
-    def test(self) -> Batch:
+    def test_epoch(self) -> Epoche:
         yield self._generate_batch()
 
-    def validate(self) -> Batch:
+    def validate_epoch(self) -> Epoche:
         yield self._generate_batch()
 
 

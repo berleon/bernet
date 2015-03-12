@@ -25,9 +25,9 @@ from bernet.utils import size
 class TestDataset(TestCase):
     def test_dataset(self):
         dataset = Dataset()
-        self.assertRaises(NotImplementedError, dataset.train)
-        self.assertRaises(NotImplementedError, dataset.test)
-        self.assertRaises(NotImplementedError, dataset.validate)
+        self.assertRaises(NotImplementedError, dataset.train_epoch)
+        self.assertRaises(NotImplementedError, dataset.test_epoch)
+        self.assertRaises(NotImplementedError, dataset.validate_epoch)
 
 
 class TestMNISTDataset(TestCase):
@@ -44,24 +44,24 @@ class TestMNISTDataset(TestCase):
 
     def test_mnist_dataset(self):
         dataset = MNISTDataset()
-        train_batch = next(dataset.train())
+        train_batch = next(dataset.train_epoch())
         self.assertEqual(size(train_batch.data().shape[1:2]),
                          size((28, 28)))
 
         self.assertTupleEqual(train_batch.labels().shape,
                               (train_batch.n_examples(),))
 
-        test_batch = next(dataset.test())
+        test_batch = next(dataset.test_epoch())
         self.assertEqual(size(test_batch.data().shape[1:2]),
                          size((28, 28)))
 
-        valid_batch = next(dataset.validate())
+        valid_batch = next(dataset.validate_epoch())
         self.assertEqual(size(valid_batch.data().shape[1:2]),
                          size((28, 28)))
 
     def test_minibatch(self):
         mnist = MNISTDataset()
-        for train in mnist.train():
+        for train in mnist.train_epoch():
             first = True
             n = 32
             for start, end in train.minibatch_idx(n):
@@ -76,7 +76,7 @@ class TestMNISTDataset(TestCase):
             f.write("bla")
 
         dataset = MNISTDataset()
-        train_batch = next(dataset.train())
+        train_batch = next(dataset.train_epoch())
         self.assertEqual(size(train_batch.data().shape[1:2]),
                          size((28, 28)))
 
@@ -89,7 +89,7 @@ class TestGeneratedDataset(TestCase):
         def line(x):
             return m*x + c
         dataset = GeneratedDataset(lambda x: x, line, (10, 10))
-        train = next(dataset.train())
+        train = next(dataset.train_epoch())
         self.assertTrue(np.all(line(train.data()) == train.labels()))
 
 
@@ -101,7 +101,7 @@ class TestLineDataset(TestCase):
         def line(x):
             return m*x + c
         dataset = LineDataset((100, 1), m=m, c=c)
-        train = next(dataset.train())
+        train = next(dataset.train_epoch())
         numpy.testing.assert_array_almost_equal(
             line(train.data()).reshape((-1)),
             train.labels())
