@@ -65,8 +65,8 @@ class TestSupervisedTrainer(TestCase):
         network = MagicMock()
         network.parameters_as_shared.return_value = [m, c]
         network.net_output = lambda x: T.reshape(m*x + c, (-1,))
-        network.get_loss_with_output = lambda o, y: T.sum(T.sqr(o - y)**2)
-        network.get_error_with_output = lambda o, y: o
+        network.get_loss = lambda o, y: T.sum(T.sqr(o - y)**2)
+        network.get_accuracy = lambda o, y: T.sum(T.eq(o, y))
 
         dataset = LineDataset(shape=(3000, 1), m=expected_m,
                               c=expected_c, seed=1234)

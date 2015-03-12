@@ -305,20 +305,12 @@ class SimpleNetwork(Network):
             {in_layer: {in_port: input}}
         )[out_layer][out_port]
 
-    def get_error(self, x, y):
-        out = self.net_output(x)
-        return self.get_error_with_output(out, y)
+    def get_accuracy(self, net_out, labels):
+        pred_labels = T.argmax(net_out, axis=1)
+        return T.sum(T.eq(pred_labels, labels)) / labels.shape[0]
 
-    def get_error_with_output(self, out, labels):
-        pred_labels = T.argmax(out, axis=1)
-        return T.sum(T.neq(pred_labels, labels)) / labels.shape[0]
-
-    def get_loss_with_output(self, out, labels):
+    def get_loss(self, out, labels):
         return self.loss.loss(out, labels)
-
-    def get_loss(self, x, y):
-        out = self.net_output(x)
-        return self.get_loss_with_output(out, y)
 
     def confusion_matrix(self, batch, n_examples=1000):
         x = symbolic_tensor_from_shape('x', batch.data().shape)
@@ -329,5 +321,5 @@ class SimpleNetwork(Network):
         pred_labels, = fn(data)
         pred_labels = np.argmax(pred_labels, axis=1)
         n = np.unique(pred_labels).size
-        return np.bincount(
-            n * (true_labels) + (pred_labels), minlength=n*n).reshape(n, n)
+        return np.bincount(n * true_labels + pred_labels,
+                           minlength=n*n).reshape(n, n)/n_examples
