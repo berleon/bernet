@@ -111,3 +111,39 @@ def symbolic_tensor_from_shape(name, shp):
 def shared_like(shared_tensor, name, init=0):
     return theano.shared(np.zeros_like(shared_tensor.get_value()) + init,
                          name="{}_{}".format(shared_tensor.name, name))
+
+
+def print_confusion_matrix(matrix):
+    from termcolor import colored
+    n = matrix.shape[0]
+    for i in range(n):
+        def with_color(i, j):
+            v = matrix[i, j]
+            total = np.sum(matrix[:, i])
+            formated = "{:.3g}".format(matrix[i, j]*100).center(5)
+            if i == j:
+                percent_right = v / total
+                if percent_right >= 0.99:
+                    return colored(formated, 'green', attrs=['bold'])
+                elif percent_right >= 0.95:
+                    return colored(formated, 'green')
+                elif percent_right >= 0.9:
+                    return colored(formated, 'yellow')
+                elif percent_right >= 0.80:
+                    return colored(formated, 'red')
+                else:
+                    return colored(formated, 'red', attrs=['bold'])
+            else:
+                percent_false = v / total
+                if percent_false <= 0.01:
+                    return colored(formated, 'grey', attrs=['bold'])
+                elif percent_false <= 0.03:
+                    return formated
+                elif percent_false <= 0.06:
+                    return colored(formated, 'yellow')
+                elif percent_false < 0.10:
+                    return colored(formated, 'red')
+                else:
+                    return colored(formated, 'red', attrs=['bold'])
+
+        print(" ".join([with_color(i, j) for j in range(n)]))

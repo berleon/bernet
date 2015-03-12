@@ -64,3 +64,13 @@ class TestUtils(TestCase):
         array = theano.shared(np.ones((10, 10)), "array")
         t = shared_like(array, "t")
         self.assertTupleEqual(t.get_value().shape, array.get_value().shape)
+
+    def test_print_confusion_matrix(self):
+        matrix = np.asarray([
+            [99, 0,  0,  0,  0, 50],
+            [0, 96,  0,  0,  0,  0],
+            [0,  0, 92,  0,  0,  0],
+            [0,  0,  0, 85, 20,  0],
+            [0,  2,  3,  7, 70,  0],
+            [1,  2,  5,  8, 10, 50]])
+        print_confusion_matrix(matrix / matrix.sum())
