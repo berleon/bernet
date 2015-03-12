@@ -17,7 +17,7 @@ before_install:
 - sudo rm -rf /dev/shm
 - sudo ln -s /run/shm /dev/shm
 install:
-- conda create --yes -n pyenv python=$TRAVIS_PYTHON_VERSION `./anaconda_packages`
+- conda create --yes -n pyenv python=$TRAVIS_PYTHON_VERSION `./anaconda_packages.sh`
 - source activate pyenv
 - pip install `./travis_requirements.sh`
 script:
