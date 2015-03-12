@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 
-echo "$1"
 NOSE_OPT="
     --with-timer
     --timer-top-n 10
