@@ -63,7 +63,8 @@ class Network(ConfigObject):
     layers = REPEAT(SUBCLASS_OF(Layer), doc="A list of :class:`.Layer`")
 
     connections = OPTIONAL(
-        ConnectionsParser(doc="A list of :class:`.Connection` "))
+        ConnectionsParser(doc="A list of :class:`.Connection` "),
+        default=[])
 
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
