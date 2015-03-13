@@ -27,7 +27,7 @@ from bernet.net import Network
 from bernet.layer import ConvLayer, SoftmaxLayer, ReLULayer, TanHLayer, \
     Connection, InnerProductLayer, ConcatLayer, Parameter
 from bernet.config import ConfigException
-from bernet.utils import size
+from bernet.utils import size, sha256_file
 
 
 theano.config.mode = "FAST_COMPILE"
@@ -92,7 +92,7 @@ class TestNetwork(TestCase):
             nn = Network(
                 name="test_net",
                 data_url="file://" + f.name,
-                data_sha256=bernet.utils.sha256_file(f)
+                data_sha256=sha256_file(f)
             )
 
             self.assert_(np.all(nn.data["rand"] == random))
@@ -177,6 +177,64 @@ class TestNetwork(TestCase):
         for p1, p2 in zip(net.parameters_as_shared(),
                           net.parameters_as_shared()):
             self.assertEqual(p1, p2)
+
+    def test_loading_parameters_from_file(self):
+        params = {
+            'ip1_weight': (1, 1, 20, 20),
+            'ip1_bias': (1, 1,  1, 20),
+            'conv1_weight': (1, 3, 15, 15),
+            'conv1_bias': (1, 3, 1, 15),
+        }
+        # generate data and save it to npz_file
+        params_data = {p: np.random.uniform(shape)
+                       for p, shape in params.items()}
+        with tempfile.NamedTemporaryFile("w+b") as f:
+            np.savez_compressed(f, **params_data)
+            f.flush()
+            sha256sum = sha256_file(f)
+            net = Network(
+                name="net_test_loading",
+                layers=[
+                    InnerProductLayer(
+                        name='ip1',
+                        weight=Parameter(
+                            name='ip1_weight',
+                            shape=params['ip1_weight']
+                        ),
+                        bias=Parameter(
+                            name='ip1_bias',
+                            shape=params['ip1_bias']
+                        ),
+                        n_units=400,
+                        input_shape=(1, 3, 20, 20)
+                    ),
+                    ConvLayer(
+                        name='conv1',
+                        num_feature_maps=3,
+                        kernel_w=5,
+                        kernel_h=5,
+                        weight=Parameter(
+                            name='conv1_weight',
+                            shape=params['conv1_weight']
+                        ),
+                        bias=Parameter(
+                            name='conv1_bias',
+                            shape=params['conv1_bias']
+
+                        ),
+                        input_shape=(2, 2, 14, 14)
+                    )
+                ],
+                data_url='file://' + f.name,
+                data_sha256=sha256sum)
+
+            for param_name, data in params_data.items():
+                name_exists = False
+                for p in net.parameters():
+                    if p.name == param_name:
+                        name_exists = True
+                        self.assert_(np.all(p.tensor == data))
+                self.assert_(name_exists)
 
     @unittest.skip
     def test_forward(self):
