@@ -45,7 +45,6 @@ def download(url: str, file) -> bool:
 
 
 def sha256_file(file, block_size: int=65536) -> str:
-    """Checks if the file has the same sha256-hash as given by `sha256sum`"""
     sha = hashlib.sha256()
 
     file.seek(0)
