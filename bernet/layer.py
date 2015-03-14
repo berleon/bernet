@@ -17,6 +17,7 @@ import re
 import theano
 from theano.ifelse import ifelse
 import theano.tensor as T
+from theano.tensor.nnet import conv2d
 import theano.tensor.signal.downsample
 
 from bernet.config import REQUIRED, OPTIONAL, EITHER, REPEAT, ConfigObject, \
@@ -144,7 +145,7 @@ def layer_type(cls):
 class Layer(ConfigObject):
     name = REQUIRED(str)
     type = EITHER("Conv", "InnerProduct", "TanH", "Softmax", "Sigmoid", "ReLU",
-                  "DummyData", "Pooling", "Concat")
+                  "DummyData", "Pooling", "Concat", "LRN")
 
     def __init__(self, **kwargs):
         """
@@ -412,6 +413,40 @@ class ConcatLayer(Layer):
     def _outputs(self, inputs):
         tensors = [inputs[p] for p in self.in_ports]
         return T.concatenate(tensors, axis=self.axis)
+
+
+# ------------------------- Normalization Layers ------------------------------
+
+
+class LRNLayer(OneInOneOutLayer):
+    """
+    Local Response Normalization (LRN)
+
+    See "ImageNet Classification with Deep Convolutional Neural Networks"
+    Alex Krizhevsky, Ilya Sutskever, and Geoffrey E. Hinton
+    NIPS 2012
+    """
+    n = OPTIONAL(int, default=5)
+    alpha = OPTIONAL(float, default=0.001)
+    beta = OPTIONAL(float, default=0.75)
+    k = OPTIONAL(float, default=3.)
+
+    def _outputs(self, inputs):
+        input = list(inputs.values())[0]
+        sq = T.sqr(input)
+        nb_chans = input.shape[1]
+        start = self.n // 2
+        end = start + nb_chans
+        sq = sq.reshape((sq.shape[0], 1, sq.shape[1], -1))
+        filter_shape = (1, 1, self.n, 1)
+        filter = T.ones(filter_shape)
+        conved = conv2d(input=sq, filters=filter, border_mode='full')
+        conved = conved.reshape((input.shape[0], -1, input.shape[2],
+                                 input.shape[3]))
+        scaled = self.k + self.alpha * conved[:, start:end, :, :]
+        scale = scaled ** self.beta
+        return input / scale
+
 
 # ------------------------- Activation Layers ---------------------------------
 
