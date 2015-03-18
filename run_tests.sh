@@ -10,9 +10,9 @@ NOSE_OPT="
     --cover-html
     --cover-min-percentage=90"
 
-if [ "$1" == "--fast" ];
+if [ "$1" == "--without-examples" ];
 then
-    nosetests --attr '!slow' $NOSE_OPT
+    nosetests --attr '!example' $NOSE_OPT
 else
     nosetests $NOSE_OPT
 fi

@@ -23,7 +23,7 @@ from nose.plugins.attrib import attr
 
 
 class TestExamples(TestCase):
-    @attr('slow')
+    @attr('example')
     def test_examples(self):
         dir = dirname(__file__)
         examples = abspath(join(dir, "../example/*.py"))
