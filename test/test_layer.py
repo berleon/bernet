@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from unittest import TestCase
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_array_equal, assert_almost_equal
 
 import theano
 
@@ -32,61 +32,6 @@ class StandardLayerTest(object):
         self.assertEqual(type(self.layer.monitors), dict)
 
 
-class ExampleLifeCycle(object):
-    METHODS_TYPES = [
-        ('input_ports', tuple, [], {}),
-        ('output_ports', tuple, [], {}),
-    ]
-
-    def __init__(self, layer: Layer, test: TestCase, input_shapes: dict=None):
-        self.layer = layer
-        self.t = test
-        if input_shapes is None:
-            input_shapes = {label: (1, 3, 16, 16)
-                            for label in self.layer.input_ports()}
-
-        self.input_shapes = input_shapes
-
-    def simulate(self):
-        self.test_types()
-        self.t.assertRaises(KeyError, self.layer.outputs, {})
-
-        self.fill_parameters()
-        fn = self.compile_theano_fn()
-        outputs = self.compute_outputs(fn)
-
-    def test_types(self):
-        for method, tpe, args, kwargs in self.METHODS_TYPES:
-            callabe = getattr(self.layer, method)
-            self.t.assertEqual(type(callabe(*args, **kwargs)), tpe)
-
-    def fill_parameters(self):
-        pass
-
-    def compile_theano_fn(self):
-        inputs = {label: theano.shared(GaussianFiller().fill(shp))
-                  for label, shp in self.input_shapes.items()}
-
-        sym_outputs = self.layer.outputs(inputs)
-        # make sure the theano outputs have a deterministic order.
-        # They are sorted by output_ports.
-        sorted_outs = sorted(sym_outputs.items(), key=lambda pair: pair[0])
-        return theano.function([], list(map(lambda p: p[1], sorted_outs)))
-
-    def compute_outputs(self, callabe):
-        raw_output = callabe()
-        return dict(zip(sorted(self.layer.output_ports()), raw_output))
-
-
-class WithParameterExampleLifeCycle(ExampleLifeCycle):
-    METHODS_TYPES = ExampleLifeCycle.METHODS_TYPES + [
-        ('fill_parameters', type(None), [], {}),
-    ]
-
-    def fill_parameters(self):
-        self.layer.fill_parameters()
-
-
 class TestLayer(TestCase):
     def setUp(self):
         #                        just some random type to satisfy EITHER
@@ -95,15 +40,7 @@ class TestLayer(TestCase):
 
     def test_base_function(self):
         l = self.layer
-        # default labels are "in" and "out"
-        self.assertTupleEqual(l.input_ports(), ("in",))
-        self.assertTupleEqual(l.output_ports(), ("out",))
-
-        # default state is to be not connected.
-        self.assertFalse(l._connected)
-
-        self.assertRaises(KeyError, l.outputs, {})
-        self.assertNotImplemented(l.outputs, {"in": T.matrix("foo")})
+        self.assertNotImplemented(l.output, T.matrix("foo"))
 
     def assertNotImplemented(self, callable, *args, **kwargs):
         self.assertRaisesRegex(
@@ -117,7 +54,9 @@ class TestLayer(TestCase):
 class TestFiller(TestCase):
     def test_gaussian(self):
         filler = GaussianFiller(mean=0., std=1.)
-        arr = filler.fill((200, 200))
+        shape = (200, 200)
+        arr = filler.fill(shape)
+        self.assertTupleEqual(arr.shape, shape)
 
     def test_apply_sparsity_half(self):
         n = 100000
@@ -289,12 +228,6 @@ class TestConvolutionLayer(TestCase):
         conv_out = conv.output(x)
         self.assertTrue(type(conv_out), np.array)
 
-    def test_life_cycle(self):
-        for l in self.conv_layers:
-            life_cycle = WithParameterExampleLifeCycle(
-                l, self,  input_shapes={"in": l.input_shape})
-            life_cycle.simulate()
-
 
 def create_layer(layer_class, **kwargs):
         return layer_class(name=layer_class.__name__ + "_test",
@@ -304,27 +237,18 @@ def create_layer(layer_class, **kwargs):
 class TestActivationLayers(TestCase):
     def setUp(self):
         self.layer_classes = [
-            SigmoidLayer,
-            TanHLayer,
-            ReLULayer,
-            SoftmaxLayer,
+            (SigmoidLayer, lambda x: 1./(1.+np.exp(-x))),
+            (TanHLayer, lambda x: np.tanh(x)),
+            (ReLULayer, lambda x: np.maximum(np.zeros_like(x), x))
         ]
 
     def test_simple_computation(self):
-        dummy = DummyDataLayer(name="dummy", type="DummyData",
-                               shape=(1, 3, 16, 16))
-        for layer_class in self.layer_classes:
+        shape = (1, 3, 16, 16)
+        for layer_class, func in self.layer_classes:
             layer = create_layer(layer_class)
-
-            dummy_out = dummy.outputs({})["out"]
-            out = layer.output(dummy_out)
-            f = theano.function([], [dummy_out, out])
-            f()
-
-    def test_life_cycle(self):
-        for layer_cls in self.layer_classes:
-            life_cycle = ExampleLifeCycle(create_layer(layer_cls), self)
-            life_cycle.simulate()
+            dummy_data = np.random.sample(shape)
+            out = layer.output(theano.shared(dummy_data))
+            assert_almost_equal(out.eval(), func(dummy_data))
 
 
 class TestSoftmaxLayer(TestCase):
@@ -337,56 +261,53 @@ class TestSoftmaxLayer(TestCase):
 
 
 class TestPoolingLayer(TestCase):
-    def test_life_cycle(self):
-        layer_options = [
-            ((2, 2), True),
-            ((5, 5), False),
-            ((4, 2), True),
-            ((2, 3), False)
-        ]
+    def test_pooling_layer(self):
         input_shapes = [(1, 1, 5, 5), (3, 1, 16, 16),
                         (1, 1, 32, 32), (1, 1, 91, 31)]
-        for input_shape in input_shapes:
-            for poolsize, ignore_border in layer_options:
-                layer = create_layer(PoolingLayer, poolsize=poolsize,
-                                     ignore_border=ignore_border)
 
-                ExampleLifeCycle(
-                    layer, self,  input_shapes={"in": input_shape}
-                ).simulate()
+        layer = create_layer(PoolingLayer, poolsize=(2, 2),
+                             ignore_border=True)
+        for input_shape in input_shapes:
+            input = theano.shared(np.random.sample(input_shape))
+            out = layer.output(input)
 
 
 class TestInnerProductLayer(TestCase):
-    def test_life_cycle(self):
+    def test_inner_prodcut_layer(self):
         layer = InnerProductLayer(name="innerprod", type="InnerProduct",
                                   n_units=20,
                                   weight=Parameter(name="weight"),
                                   bias=Parameter(name="bias"),
                                   input_shape=(1, 3, 28, 28))
-
-        WithParameterExampleLifeCycle(layer, self,
-                                      {"in": (1, 3, 28, 28)}).simulate()
+        layer.fill_parameters()
+        np_input = np.random.sample((1, 3, 28, 28))
+        reshaped = np.reshape(np_input, (1, -1))
+        np_output = np.dot(reshaped, layer.weight.tensor) + layer.bias.tensor
+        input = theano.shared(np_input)
+        np.testing.assert_almost_equal(
+            layer.output(input).eval(),
+            np_output)
 
 
 class TestConcatLayer(TestCase):
     def test_concat_layer(self):
-        join = ConcatLayer(name="join", in_ports=["foo", "bar"], axis=2)
+        concat = ConcatLayer(name="join", in_ports=["foo", "bar"], axis=2)
         in_shape = (1, 3, 20, 20)
 
         rand_foo = np.random.sample(in_shape)
         rand_bar = np.random.sample(in_shape)
-        outs = join.outputs({"foo": theano.shared(rand_foo),
+        outs = concat.output({"foo": theano.shared(rand_foo),
                              "bar": theano.shared(rand_bar)})
 
-        f = theano.function([], [outs["out"]])
-        assert_array_equal(f()[0],
+        assert_array_equal(outs.eval(),
                            np.concatenate([rand_foo, rand_bar], axis=2))
 
 
 class TestLRNLayer(TestCase):
     def test_lrn_layer(self):
         n = 5
-        alpha = 0.001
+        # big value for alpha so mistakes involving alpha show up strongly
+        alpha = 1.5
         beta = 0.75
         k = 3.
 

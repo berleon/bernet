@@ -138,7 +138,8 @@ class NotConnectedException(Exception):
 
 def layer_type(cls):
     """Returns the type of the layer class.
-     For Example layer_type(ConvLayer) will return \"Conv\""""
+     For Example layer_type("ConvLayer") will return "Conv"
+     """
     return cls.__name__.rstrip("Layer")
 
 
@@ -158,64 +159,43 @@ class Layer(ConfigObject):
         super().__init__(**kwargs)
         self._connected = False
 
-    def input_ports(self):
-        return "in",
-
-    def output_ports(self):
-        return "out",
-
     def copy(self):
-        # TODO: checkout copying
         raise NotImplementedError
 
-    def copy_disconnected(self):
-        raise NotImplementedError
-
-    def outputs(self, inputs: '{str: symbolic tensor}'):
+    def output(self, input: 'Theano Expression'):
         """
         :param input: dict of {"<input_port>": symbolic tensor variable}
         """
-        for l in self.input_ports():
-            if l not in inputs:
-                raise KeyError("Expected a symbolic tensor variable for input"
-                               " port `{!s}`.".format(l))
-        reshaped_inputs = {port: self._reshape(port, sym_tensor)
-                           for port, sym_tensor in inputs.items()}
+        reshaped_input = self._reshape(input)
+        return self._output(reshaped_input)
 
-        out = self._outputs(reshaped_inputs)
-        if type(out) is not dict:
-            assert len(self.output_ports()) == 1
-            return {self.output_ports()[0]: out}
-        else:
-            return out
-
-    def _outputs(self, inputs):
+    def _output(self, input):
         raise NotImplementedError("Please use a subclass of Layer")
 
-    def _reshape(self, in_port, sym_tensor):
-        expected = self._expected_shape(in_port)
+    def _reshape(self, input: 'Theano Expression'):
+        expected = self._expected_shape()
 
         if expected is not None:
-            return ifelse(T.eq(expected, sym_tensor.shape),
-                          sym_tensor,
-                          sym_tensor.reshape(expected))
+            return ifelse(T.eq(expected, input.shape),
+                          input,
+                          input.reshape(expected))
 
         max_dims = self._reshape_dims()
-        if sym_tensor.ndim > max_dims:
-            sym_shp = sym_tensor.shape
+        if input.ndim > max_dims:
+            sym_shp = input.shape
             if max_dims == 2:
                 shp = (sym_shp[0], -1)
             if max_dims == 3:
                 shp = (sym_shp[0], sym_shp[1], -1)
 
-            return sym_tensor.reshape(shp, ndim=max_dims)
+            return input.reshape(shp, ndim=max_dims)
 
-        return sym_tensor
+        return input
 
     def _reshape_dims(self):
         return 4
 
-    def _expected_shape(self, in_port):
+    def _expected_shape(self):
         return None
 
     @classmethod
@@ -236,15 +216,80 @@ class Layer(ConfigObject):
                       .format(value))
 
 
-class OneInOneOutLayer(Layer):
-    def output(self, input):
-        return self.outputs({"in": input})["out"]
+def has_multiple_inputs(layer):
+    return issubclass(type(layer), MultiInLayer)
 
+
+def has_multiple_outputs(layer):
+    return issubclass(type(layer), MultiOutLayer)
+
+
+class MultiInLayer(Layer):
     def input_ports(self):
-        return "in",
+        raise NotImplementedError()
 
-    def output_ports(self):
-        return "out",
+    def _expected_shape(self):
+        return None
+
+    def _reshape(self, inputs):
+        reshaped = {}
+        for port, input in inputs.items():
+            expected = self._expected_shape()
+
+            if expected is not None:
+                reshaped[port] = ifelse(T.eq(expected, input.shape),
+                                        input,
+                                        input.reshape(expected))
+
+            max_dims = self._reshape_dims()
+            if input.ndim > max_dims:
+                sym_shp = input.shape
+                if max_dims == 2:
+                    shp = (sym_shp[0], -1)
+                if max_dims == 3:
+                    shp = (sym_shp[0], sym_shp[1], -1)
+
+                reshaped[port] = input.reshape(shp, ndim=max_dims)
+            if port not in reshaped:
+                reshaped[port] = input
+        return reshaped
+
+    def output(self, inputs: '{str: symbolic tensor}'):
+        """
+        :param input: dict of {"<input_port>": symbolic tensor variable}
+        """
+        for l in self.input_ports():
+            if l not in inputs:
+                raise KeyError("Expected a symbolic tensor variable for input"
+                               " port `{!s}`.".format(l))
+
+        reshaped_inputs = self._reshape(inputs)
+
+        return self._output(reshaped_inputs)
+
+    def _output(self, inputs: '{str: symbolic tensor}'):
+        raise NotImplementedError()
+
+
+class MultiOutLayer(Layer):
+    def out_ports(self):
+        raise NotImplementedError()
+
+    def output(self, inputs: '{str: symbolic tensor}'):
+        """
+        :param input: dict of {"<input_port>": symbolic tensor variable}
+        """
+        for l in self.input_ports():
+            if l not in inputs:
+                raise KeyError("Expected a symbolic tensor variable for input"
+                               " port `{!s}`.".format(l))
+        reshaped_inputs = self._reshape(inputs)
+        outs = self._output(reshaped_inputs)
+        assert self.out_ports() in outs
+        return outs
+
+    def _output(self, inputs):
+        raise NotImplementedError()
 
 
 class WithParameterLayer(Layer):
@@ -280,7 +325,7 @@ class WithParameterLayer(Layer):
         return T.as_tensor_variable(0)
 
 
-class ConvLayer(WithParameterLayer, OneInOneOutLayer):
+class ConvLayer(WithParameterLayer):
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
 
@@ -321,18 +366,16 @@ class ConvLayer(WithParameterLayer, OneInOneOutLayer):
         shp = self.filter_shape()
         return shp[0],
 
-    def _outputs(self, inputs):
+    def _output(self, input):
         assert self.weight.tensor is not None
-
         conv_out = T.nnet.conv2d(
-            input=inputs["in"],
+            input=input,
             image_shape=self.input_shape,
             filters=self.weight.shared,
             filter_shape=self.filter_shape(),
             subsample=(self.stride_h, self.stride_v),
             border_mode=self.border_mode,
         )
-
         return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
 
@@ -365,17 +408,17 @@ class InnerProductLayer(WithParameterLayer):
     def _reshape_dims(self):
         return 2
 
-    def _outputs(self, inputs):
-        return T.dot(inputs["in"], self.weight.shared) + self.bias.shared
+    def _output(self, input):
+        return T.dot(input, self.weight.shared) + self.bias.shared
 
 
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
     ignore_border = OPTIONAL(bool, default=False)
 
-    def _outputs(self, inputs):
+    def _output(self, input):
         return theano.tensor.signal.downsample.max_pool_2d(
-            input=inputs["in"],
+            input=input,
             ds=self.poolsize,
             ignore_border=self.ignore_border
         )
@@ -397,20 +440,20 @@ class DataSourceLayer(Layer):
 class DummyDataLayer(DataSourceLayer):
     filler = OPTIONAL(Filler, default=GaussianFiller())
 
-    def _outputs(self, inputs):
+    def _output(self, input):
         return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
 
 # --------------------------- Util Layers -------------------------------------
 
 
-class ConcatLayer(Layer):
+class ConcatLayer(MultiInLayer):
     in_ports = REPEAT(str)
     axis = REQUIRED(int)
 
     def input_ports(self):
         return tuple(self.in_ports)
 
-    def _outputs(self, inputs):
+    def _output(self, inputs):
         tensors = [inputs[p] for p in self.in_ports]
         return T.concatenate(tensors, axis=self.axis)
 
@@ -418,7 +461,7 @@ class ConcatLayer(Layer):
 # ------------------------- Normalization Layers ------------------------------
 
 
-class LRNLayer(OneInOneOutLayer):
+class LRNLayer(Layer):
     """
     Local Response Normalization (LRN)
 
@@ -431,8 +474,7 @@ class LRNLayer(OneInOneOutLayer):
     beta = OPTIONAL(float, default=0.75)
     k = OPTIONAL(float, default=3.)
 
-    def _outputs(self, inputs):
-        input = list(inputs.values())[0]
+    def _output(self, input):
         sq = T.sqr(input)
         nb_chans = input.shape[1]
         start = self.n // 2
@@ -451,32 +493,31 @@ class LRNLayer(OneInOneOutLayer):
 # ------------------------- Activation Layers ---------------------------------
 
 
-class ActivationLayer(OneInOneOutLayer):
-    def _output_shapes(self):
-        return {"out": self._expected_shape("in")}
+class ActivationLayer(Layer):
+    pass
 
 
 class SigmoidLayer(ActivationLayer):
-    def _outputs(self, inputs):
-        return T.nnet.sigmoid(inputs["in"])
+    def _output(self, input):
+        return T.nnet.sigmoid(input)
 
 
 class ReLULayer(ActivationLayer):
-    def _outputs(self, inputs):
-        return T.clip(inputs["in"], 0, np.infty)
+    def _output(self, input):
+        return T.clip(input, 0, np.infty)
 
 
 class TanHLayer(ActivationLayer):
-    def _outputs(self, inputs):
-        return T.tanh(inputs["in"])
+    def _output(self, input):
+        return T.tanh(input)
 
 
 class SoftmaxLayer(ActivationLayer):
     def _reshape_dims(self):
         return 2
 
-    def _outputs(self, inputs):
-        return T.nnet.softmax(inputs["in"])
+    def _output(self, input):
+        return T.nnet.softmax(input)
 
 
 # ----------------------------- Connection ------------------------------------
@@ -567,9 +608,9 @@ def format_ports(ports):
 
 class Connection(ConfigObject):
     from_name = REQUIRED(str)
-    from_port = OPTIONAL(str)
+    from_port = OPTIONAL(str, default=None)
     to_name = REQUIRED(str)
-    to_port = OPTIONAL(str)
+    to_port = OPTIONAL(str, default=None)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -583,18 +624,18 @@ class Connection(ConfigObject):
 
     def add_layer(self, layer):
         if self.from_name == layer.name:
-            self._add_from_layer(layer)
+            self.from_layer = layer
         if self.to_name == layer.name:
-            self._add_to_layer(layer)
+            self.to_layer = layer
 
-    def _add_from_layer(self, layer):
-        self.from_layer = layer
-        if self.from_port is None:
-            assert len(layer.output_ports()) == 1
-            self.from_port = layer.output_ports()[0]
+    def _format_name_port(self, name, port):
+        port_str = ''
+        if port is not None:
+            port_str = "[{}]".format(port)
+        return "{}{}".format(name, port_str)
 
-    def _add_to_layer(self, layer):
-        self.to_layer = layer
-        if self.to_port is None:
-            assert len(layer.input_ports()) == 1
-            self.to_port = layer.input_ports()[0]
+    def from_str(self):
+        return self._format_name_port(self.from_name, self.from_port)
+
+    def to_str(self):
+        return self._format_name_port(self.to_name, self.to_port)

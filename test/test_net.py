@@ -116,15 +116,15 @@ class TestNetwork(TestCase):
 
     def test_setup_connections(self):
         net = self.simple_network
-        self.assertDictEqual(net.layer_free_in_ports, {"relu": ["in"]})
-        self.assertDictEqual(net.layer_free_out_ports, {"tanh": ["out"]})
+        self.assertDictEqual(net.layer_free_in_ports, {"relu": [None]})
+        self.assertDictEqual(net.layer_free_out_ports, {"tanh": [None]})
 
     def test_multiple_taken_input_port_throws_exception(self):
         self.assertRaisesRegexp(
             ConfigException,
-            re.escape("Layer `softmax` has multiple connections for input port"
-                      " `in`. The connections are from: "
-                      "`relu[out]`, `tanh[out]`."),
+            re.escape("Expected Layer `softmax` to have one incoming "
+                      "connection, but it has multiple connections from: "
+                      "relu, tanh."),
             Network,
             name="test",
             layers=[self.relu, self.softmax, self.tanh],
@@ -136,11 +136,8 @@ class TestNetwork(TestCase):
         net = self.simple_network
         input_shape = (20, 20)
         x = T.ones(input_shape)
-        outs = net.layer_outputs({"relu": {"in": x}})
-
-        f = theano.function([], [outs["tanh"]["out"]])
-        out = f()
-        self.assertEqual(out[0].shape, input_shape)
+        out = net.layer_outputs(x)
+        self.assertEqual(out['tanh'].eval().shape, input_shape)
 
     def test_output_complex(self):
         net = self.complex_net
@@ -164,12 +161,12 @@ class TestNetwork(TestCase):
         join_input_shp = (1, 5, 20, 17)
 
         outs = net.layer_outputs({
-            "conv#1": {"in": T.ones(input_shape)},
+            "conv#1": T.ones(input_shape),
             "join#1": {"from_net_in": T.ones(join_input_shp)}
         })
-        join_fn = theano.function([], [outs["join#1"]["out"]])
+        join_fn = theano.function([], [outs["join#1"]])
         self.assertEqual(join_fn()[0].shape, (1, 5, 37, 17))
-        f = theano.function([], [outs["softmax#1"]["out"]])
+        f = theano.function([], [outs["softmax#1"]])
         self.assertTupleEqual(f()[0].shape, (1, 64))
 
     def test_parameters_not_changing(self):
@@ -240,8 +237,8 @@ class TestNetwork(TestCase):
     def test_forward(self):
         net = self.simple_network
         input_shape = (20, 20)
-        outs = net.forward({"relu": {"in": np.random.sample(input_shape)}})
-        self.assertEqual(size(outs["tanh"]["out"].shape), size(input_shape))
+        outs = net.forward(np.random.sample(input_shape))
+        self.assertEqual(size(outs.shape), size(input_shape))
 
     def test_check_sha256sum(self):
         with tempfile.NamedTemporaryFile("w+b") as f:
@@ -259,14 +256,13 @@ class TestNetwork(TestCase):
             net = Network.load_json(f)
             self.assertDictEqual(
                 net.free_in_ports(),
-                {'ip#1': ['in']}
+                {'ip#1': [None]}
             )
             self.assertDictEqual(
                 net.free_out_ports(),
-                {'softmax#1': ['out']}
+                {'softmax#1': [None]}
             )
 
-            out = net.forward(
-                {'ip#1': {'in': np.random.sample((1, 1, 28, 28))}})
+            out = net.forward(np.random.sample((1, 1, 28, 28)))
 
-            self.assertTupleEqual(out["softmax#1"]["out"].shape, (1, 10))
+            self.assertTupleEqual(out.shape, (1, 10))

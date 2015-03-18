@@ -22,7 +22,7 @@ from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, \
     SUBCLASS_OF, EITHER
 from bernet.layer import Layer, WithParameterLayer, format_ports, \
-    ConnectionsParser
+    ConnectionsParser, MultiInLayer, has_multiple_inputs, has_multiple_outputs
 from bernet.loss import NegativeLogLikelihood, MSE
 from bernet.utils import symbolic_tensor_from_shape
 
@@ -116,7 +116,9 @@ class Network(ConfigObject):
                 free_in_ports_tensors[layer_name][in_port] = tensor
                 self._theano_order_ins.append((layer_name, in_port))
 
-        return self.layer_outputs(free_in_ports_tensors), theano_ins
+        layer_outputs = self.layer_outputs(free_in_ports_tensors,
+                                           force_dict_output=True)
+        return layer_outputs, theano_ins
 
     def _compile(self):
         layer_outs, theano_ins = self._build_symbolic_outputs()
@@ -136,7 +138,8 @@ class Network(ConfigObject):
         for (layer_name, port_name), out in \
                 zip(self._theano_order_outs, theano_outs):
             dict_out[layer_name][port_name] = out
-        return dict_out
+
+        return self._outputs_from_dict(dict_out)
 
     def _to_theano_ins(self, theano_ins):
         """Converts an input dictionary with structure
@@ -147,40 +150,109 @@ class Network(ConfigObject):
     def forward(self, inputs: '{<layer>: {<port>: object}}'):
         if self._func is None:
             self._compile()
-        return self._from_theano_outs(self._func(*self._to_theano_ins(inputs)))
+        dict_inputs = self._inputs_to_dict(inputs)
+        return self._from_theano_outs(
+            self._func(*self._to_theano_ins(dict_inputs)))
 
-    def layer_outputs(self, inputs: '{<layer>: {<port>: object}}'):
-        outputs = {}
-        inputs = defaultdict(dict, **inputs)
+    def layer_output_shapes(self, input_shapes: '{<layer>: <shape>}}'):
+        inputs = {layer: theano.shared(np.zeros_like(shape),
+                                       name="{}_in".format(layer))
+                  for layer, shape in input_shapes}
+        outs = self.layer_outputs(inputs)
+        return {layer: tensor.shape.eval() for layer, tensor in outs}
 
-        dic_layers_ports = {l: set(l.input_ports()) -
+    def _inputs_to_dict(self, inputs):
+        if type(inputs) == dict or issubclass(type(inputs), dict):
+            ret_inputs = defaultdict(dict)
+            for layer_name, items in inputs.items():
+                if type(items) == dict or issubclass(type(items), dict):
+                    ret_inputs[layer_name] = items
+                else:
+                    ret_inputs[layer_name] = {None: items}
+            return ret_inputs
+        else:
+            free_in = self.free_in_ports()
+            assert len(free_in) == 1, \
+                "Got one input value, but there are mutiple free ports {}. " \
+                .format(", ".join(
+                    ["at layer {} with ports {}"
+                     .format(layer_name, format_ports(p))
+                     for layer_name, p in free_in]))
+
+            layer_name, ports = next(iter(free_in.items()))
+            assert len(ports) == 1, \
+                "Got one input value, but there are mutiple free ports {} " \
+                "at layer `{}`. " \
+                .format(format_ports(ports), layer_name)
+            return defaultdict(dict, **{layer_name: {ports[0]: inputs}})
+
+    def _layer_input_ports(self, layer):
+        if has_multiple_inputs(layer):
+            return layer.input_ports()
+        else:
+            return [None]
+
+    def layer_outputs(self,
+                      inputs: 'Theano Expression | '
+                              '{<layer>: {<port>: Theano Expression}}',
+                      force_dict_output=False
+                      ):
+        inputs = self._inputs_to_dict(inputs)
+        dic_layers_ports = {l: set(self._layer_input_ports(l)) -
                             set(inputs[l.name].keys())
                             for l in self.layers}
 
-        self._check_satisfies_free_input_ports(inputs)
+        out_dict = defaultdict(dict, **inputs)
 
+        self._check_satisfies_free_input_ports(inputs)
         while dic_layers_ports:
             layers_with_satisfied_inputs = \
                 [layer for layer, ports in dic_layers_ports.items()
                  if not ports]
-
             for layer in layers_with_satisfied_inputs:
                 inputs_for_layer = inputs.get(layer.name)
-                for p in layer.input_ports():
+                for p in self._layer_input_ports(layer):
                     assert p in inputs_for_layer
-
-                outputs[layer.name] = layer.outputs(inputs_for_layer)
+                out_dict[layer.name] = self._get_outputs(layer,
+                                                         inputs_for_layer)
                 for con in self._connections_from(layer):
                     inputs[con.to_name][con.to_port] = \
-                        outputs[con.from_name][con.from_port]
+                        out_dict[con.from_name][con.from_port]
                     # port is now satisfied
                     dic_layers_ports[con.to_layer].remove(con.to_port)
                 del dic_layers_ports[layer]
+        if force_dict_output:
+            return out_dict
+        else:
+            return self._outputs_from_dict(out_dict)
 
-        return outputs
+    def _outputs_from_dict(self, dict_out):
+        if len(dict_out) == 1:
+            layer_name, port_output_dict = next(iter(dict_out.items()))
+            port_name, output = next(iter(port_output_dict.items()))
+            return output
+        else:
+            outputs = {}
+            for layer_name, ports in dict_out.items():
+                if len(ports) == 1:
+                    _, out = next(iter(ports.items()))
+                    outputs[layer_name] = out
+                else:
+                    outputs[layer_name] = ports
+            return outputs
+
+    def _get_outputs(self, layer,
+                     inputs_for_layer: '{<port>: Theano Expression}'):
+        inputs = inputs_for_layer if has_multiple_inputs(layer) \
+            else inputs_for_layer[None]
+
+        if has_multiple_outputs(layer):
+            return layer.output(inputs)
+        else:
+            return {None: layer.output(inputs)}
 
     def _check_satisfies_free_input_ports(
-            self, inputs: '{<layer>: {<port>: object}}'):
+            self, inputs: 'Theano Expression | dict()'):
         for layer_name, free_in_ports in self.layer_free_in_ports.items():
             if layer_name not in inputs:
                 self.ctx.error("No ports given for layer `{:}` "
@@ -212,7 +284,7 @@ class Network(ConfigObject):
     def _setup_connections(self):
         self._add_layers_to_connections()
         for layer in self.layers:
-            self._check_connections(layer)
+            self._check_incoming_connections(layer)
             free_in = self._free_in_ports(layer)
             if len(free_in) > 0:
                 self.layer_free_in_ports[layer.name].extend(free_in)
@@ -221,21 +293,32 @@ class Network(ConfigObject):
             if len(free_out) > 0:
                 self.layer_free_out_ports[layer.name].extend(free_out)
 
-    def _check_connections(self, layer):
-        connected_to_port = [c.to_port for c in self._connections_to(layer)]
-
+    def _check_incoming_connections_multi_in_layer(self, layer):
+        connections_to_layer = self._connections_to(layer)
+        connected_to_port = [c.to_port for c in connections_to_layer]
         for layer_in_port in layer.input_ports():
             if layer_in_port in connected_to_port:
                 if connected_to_port.count(layer_in_port) > 1:
-                    connections = [c for c in self._connections_to(layer)
-                                   if c.to_port == layer_in_port]
-                    _from = ["`{:}[{:}]`".format(c.from_name, c.from_port)
-                             for c in connections]
-                    self.ctx.error("Layer `{:}` has multiple connections for "
-                                   "input port `{:}`. "
-                                   "The connections are from: {:}."
+                    froms = [c.from_str()
+                             for c in connections_to_layer]
+                    self.ctx.error("Layer `{}` has multiple connections for "
+                                   "input port `{}`. "
+                                   "The connections are from: {}."
                                    .format(layer.name, layer_in_port,
-                                           ", ".join(_from)))
+                                           ", ".join(froms)))
+
+    def _check_incoming_connections(self, layer):
+        connections_to_layer = [c for c in self._connections_to(layer)]
+        if issubclass(type(layer), MultiInLayer):
+            self._check_incoming_connections_multi_in_layer(layer)
+        else:
+            if len(connections_to_layer) > 1:
+                froms = [c.from_str()
+                         for c in connections_to_layer]
+                self.ctx.error("Expected Layer `{}` to have one incoming "
+                               "connection, but it has multiple connections "
+                               "from: {}."
+                               .format(layer.name,  ", ".join(froms)))
 
     def _add_layers_to_connections(self):
         for layer in self.layers:
@@ -256,14 +339,24 @@ class Network(ConfigObject):
                 if self._free_out_ports(l)}
 
     def _free_in_ports(self, layer):
-        connected_in_ports = [c.to_port for c in self._connections_to(layer)]
-        return [p for p in layer.input_ports() if p not in connected_in_ports]
+        connections_to_layer = [c for c in self._connections_to(layer)]
+        if has_multiple_inputs(layer):
+            taken_ports = [c.to_port for c in connections_to_layer]
+            return [p for p in layer.input_ports() if p not in taken_ports]
+        elif len(connections_to_layer) == 0:
+            return [None]
+        else:
+            return []
 
     def _free_out_ports(self, layer):
-        connected_out_ports = [c.from_port
-                               for c in self._connections_from(layer)]
-        return [p for p in layer.output_ports()
-                if p not in connected_out_ports]
+        connections_from_layer = [c for c in self._connections_from(layer)]
+        if has_multiple_outputs(layer):
+            taken_ports = [c.from_port for c in connections_from_layer]
+            return [p for p in layer.output_ports() if p not in taken_ports]
+        elif len(connections_from_layer) == 0:
+            return [None]
+        else:
+            return []
 
     def get_layer(self, name):
         """Return the layer with layer.name == `name`. If no such layer
@@ -303,7 +396,8 @@ class SimpleNetwork(Network):
         in_port = in_ports[0]
         out_port = out_ports[0]
         return self.layer_outputs(
-            {in_layer: {in_port: input}}
+            {in_layer: {in_port: input}},
+            force_dict_output=True
         )[out_layer][out_port]
 
     def get_accuracy(self, net_out, labels):
