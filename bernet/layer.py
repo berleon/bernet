@@ -19,9 +19,10 @@ from theano.ifelse import ifelse
 import theano.tensor as T
 from theano.tensor.nnet import conv2d
 import theano.tensor.signal.downsample
+from yaml import ScalarNode, SequenceNode, MappingNode
 
 from bernet.config import REQUIRED, OPTIONAL, EITHER, REPEAT, ConfigObject, \
-    ConfigField
+    ConfigField, ENUM, config_error
 
 from bernet.utils import chans, bs, w, h
 
@@ -85,47 +86,65 @@ class Shape(REPEAT):
             raise ValueError("The maximum number of dimension is {:}."
                              .format(self.MAX_DIMS))
 
-    def _construct(self, value, ctx):
-        constr_list = super()._construct(value, ctx)
-        if constr_list is None:
-            ctx.error("No Shape given.")
+    def construct(self, loader, node):
+        listlike = super().construct(loader, node)
 
-        dims = len(constr_list)
+        if self.dims is None:
+            shape = (1,) * (self.max_dims-len(listlike)) + tuple(listlike)
+        else:
+            shape = tuple(listlike)
+        self.assert_valid(shape)
+        return shape
+
+    def represent(self, dumper, listlike):
+        node = super().represent(dumper, listlike)
+        node.flow_style = True
+        return node
+
+    def assert_valid(self, listlike, node=None):
+        if listlike is None:
+            raise config_error("No Shape given.")
+
+        dims = len(listlike)
 
         if self.dims is not None and self.dims != dims:
-            ctx.error("A dimension of '{:}' is required. "
-                      "Got '{:}' with a dimension of '{:}'"
-                      .format(self.dims, constr_list, dims))
+            raise config_error(
+                "A dimension of '{:}' is required. Got '{:}' with a dimension "
+                "of '{:}'".format(self.dims, listlike, dims))
 
         if dims > self.max_dims:
-            ctx.error("Shape '{:}' has a dimension of '{:}'. The maximum"
-                      " allowed dimension is {:}."
-                      .format(constr_list, len(constr_list), self.max_dims))
+            raise config_error(
+                "Shape '{:}' has a dimension of '{:}'. The maximum allowed "
+                "dimension is {:}."
+                .format(listlike, len(listlike), self.max_dims))
 
-        if len(constr_list) == 0:
-            ctx.error("Shape needs at least one element.")
-        for elem in constr_list:
+        if len(listlike) == 0:
+            raise config_error("Shape needs at least one element.")
+        for elem in listlike:
             if elem <= 0:
-                ctx.error("Shape must be strictly positive.")
-
-        return (1,) * (self.max_dims-len(constr_list)) + tuple(constr_list)
+                raise config_error("Shape must be strictly positive.")
 
 
 class Parameter(ConfigObject):
     name = REQUIRED(str)
-    shape = REPEAT(int)
+    shape = OPTIONAL(REPEAT(int))
     filler = OPTIONAL(Filler, default=GaussianFiller(mean=0., std=1.))
     learning_rate = OPTIONAL(float, default=1.)
     weight_decay = OPTIONAL(float, default=1.)
-    tensor = OPTIONAL(np.ndarray)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._tensor = None
+        self._shared = None
 
-    def _set_property(self, name, value, ctx=None):
-        super()._set_property(name, value, ctx=ctx)
-        if name == "tensor" and self.tensor is not None:
-            self._shared = theano.shared(self.tensor, name=self.name)
+    @property
+    def tensor(self):
+        return self._tensor
+
+    @tensor.setter
+    def tensor(self, tensor):
+        self._tensor = tensor
+        self._shared = theano.shared(self.tensor, name=self.name)
 
     @property
     def shared(self):
@@ -145,8 +164,6 @@ def layer_type(cls):
 
 class Layer(ConfigObject):
     name = REQUIRED(str)
-    type = EITHER("Conv", "InnerProduct", "TanH", "Softmax", "Sigmoid", "ReLU",
-                  "DummyData", "Pooling", "Concat", "LRN")
 
     def __init__(self, **kwargs):
         """
@@ -154,8 +171,6 @@ class Layer(ConfigObject):
             :param options: LayerOption
             :param parameters: list of [..] TODO
             """
-        kwargs["type"] = kwargs.get("type",
-                                    self.__class__.__name__.rstrip("Layer"))
         super().__init__(**kwargs)
         self._connected = False
 
@@ -197,23 +212,6 @@ class Layer(ConfigObject):
 
     def _expected_shape(self):
         return None
-
-    @classmethod
-    def construct_subclass(cls, value, ctx):
-        if type(value) == dict:
-            assert type(value['type']) == str
-            allowed_types = Layer.__config_fields__["type"].fix_values
-            if value['type'] in allowed_types:
-                class_name = value['type'] + "Layer"
-                return globals()[class_name](**value)
-            else:
-                ctx.error("type `{:}` is not in allowed types `{:}`"
-                          .format(value['type'], allowed_types))
-        elif issubclass(type(value), Layer):
-            return value
-        else:
-            ctx.error("Cannot construct a subclass of Layer from value `{:}`"
-                      .format(value))
 
 
 def has_multiple_inputs(layer):
@@ -342,7 +340,7 @@ class ConvLayer(WithParameterLayer):
     stride_h = OPTIONAL(int, default=1)
 
     # `valid` or `full`. Default is `valid`. see scipy.signal.convolve2d
-    border_mode = OPTIONAL(EITHER("valid", "full"), default="valid")
+    border_mode = OPTIONAL(ENUM("valid", "full"), default="valid")
 
     input_shape = REQUIRED(Shape(dims=4), doc="""Shape of the input tensor""")
 
@@ -352,6 +350,7 @@ class ConvLayer(WithParameterLayer):
 
     def _parameter_shape(self, param):
         if param == self.weight:
+            print("Shape of {} is {}".format(self.name, self.filter_shape()))
             return self.filter_shape()
         if param == self.bias:
             return self.bias_shape()
@@ -379,28 +378,21 @@ class ConvLayer(WithParameterLayer):
         return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
 
-def _to_2d_shape(shp):
-    return bs(shp), chans(shp)*h(shp)*w(shp)
-
-
-def _to_Nd_shape(shp, n):
-    return shp[0:n-1] + (-1, )
-
-
 class InnerProductLayer(WithParameterLayer):
     n_units = REQUIRED(int)
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
-    input_shape = REQUIRED(Shape(), doc="Shape of the input tensor.")
+    input_shape = REQUIRED(Shape(dims=2), doc="Shape of the input tensor.")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.parameters = [self.weight, self.bias]
 
     def _parameter_shape(self, param: Parameter):
-        shp = self.input_shape
-        in_size = chans(shp)*h(shp)*w(shp)
+        in_size = self.input_shape[-1]
         if param == self.weight:
+            print("Shape of {} is {}.".format(self.name,
+                                              (in_size, self.n_units)))
             return in_size, self.n_units
         elif param == self.bias:
             return self.n_units,
@@ -442,6 +434,7 @@ class DummyDataLayer(DataSourceLayer):
 
     def _output(self, input):
         return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
+
 
 # --------------------------- Util Layers -------------------------------------
 
@@ -523,7 +516,7 @@ class SoftmaxLayer(ActivationLayer):
 # ----------------------------- Connection ------------------------------------
 
 
-class ConnectionsParser(ConfigField):
+class CONNECTIONS(ConfigField):
     """
     A simple Parser to allow shortcuts for connections.
 
@@ -553,12 +546,12 @@ to_name=relu#1, to_port=None)
 
     def __init__(self, doc="", type_sig=""):
         super().__init__(doc=doc, type_sig=type_sig)
-        self.ctx = None
 
     def _parse_layer(self, string):
         match = self._layer_regex.match(string)
         if match is None:
-            self.ctx.error("Could not parse Connection `{:}`".format(string))
+            raise config_error(
+                "Could not parse Connection `{:}`".format(string))
         grps = match.groups()
         return grps[1], grps[2], grps[4]
 
@@ -575,28 +568,47 @@ to_name=relu#1, to_port=None)
         for start, end in zip(tokens[:-1], tokens[1:]):
             yield self._parse_connection(start, end)
 
-    def _construct(self, value, ctx):
-        self.ctx = ctx
-        if type(value) == str:
-            return list(self._parse_connections(value))
-        elif type(value) == list:
+    def construct(self, loader, node):
+        if isinstance(node, ScalarNode):
+            return list(self._parse_connections(node.value))
+        elif isinstance(node, SequenceNode):
             ret_list = []
-            for conn in value:
-                if type(conn) == Connection:
-                    ret_list.append(conn)
-                elif type(conn) == dict:
-                    ret_list.append(Connection(**conn))
-                elif type(conn) == str:
-                    return list(self._parse_connections(conn))
+            for conn in node.value:
+                if isinstance(conn, ScalarNode):
+                    ret_list.extend(list(self._parse_connections(conn.value)))
+                elif isinstance(conn, MappingNode):
+                    ret_list.append(Connection.from_yaml(loader, conn))
                 else:
-                    ctx.error("Cannot parse connection from value `{:}`"
-                              .format(value))
+                    raise config_error(
+                        "Cannot parse connection from value `{:}`"
+                        .format(conn.value), conn)
             return ret_list
         else:
-            ctx.error("Expected str or list, but got type `{:}`".format(value))
+            raise config_error(
+                "Expected str or list, but got value `{:}`"
+                .format(node.value), node)
 
-    def _type(self):
+    def assert_valid(self, value, node=None):
+        REPEAT(Connection).assert_valid(value)
+
+    def represent(self, dumper, value) -> 'node':
+        return REPEAT(Connection).represent(dumper, value)
+
+    def type_signature(self):
         return "list of :class:`.Connection`"
+
+A_LAYER = EITHER({
+    "Conv": ConvLayer,
+    "IP": InnerProductLayer,
+    "TanH": TanHLayer,
+    "Softmax": SoftmaxLayer,
+    "Sigmoid": SigmoidLayer,
+    "ReLU": ReLULayer,
+    "DummyData": DummyDataLayer,
+    "Pooling": PoolingLayer,
+    "Concat": ConcatLayer,
+    "LRN": LRNLayer
+})
 
 
 def format_ports(ports):

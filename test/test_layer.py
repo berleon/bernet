@@ -16,9 +16,12 @@ from unittest import TestCase
 from numpy.testing import assert_array_equal, assert_almost_equal
 
 import theano
+import yaml
+from yaml.constructor import ConstructorError
 
 from bernet.layer import *
-from bernet.config import ConfigException, InitContext
+from bernet.config import ConfigError
+from test.test_config import ConfigFieldTestCase
 
 theano.config.mode = "FAST_COMPILE"
 
@@ -34,9 +37,7 @@ class StandardLayerTest(object):
 
 class TestLayer(TestCase):
     def setUp(self):
-        #                        just some random type to satisfy EITHER
-        self.layer = Layer(type="InnerProduct",
-                           name="test_layer")
+        self.layer = Layer(name="test_layer")
 
     def test_base_function(self):
         l = self.layer
@@ -93,49 +94,49 @@ class TestFiller(TestCase):
         self.assertLess(arr.max(), 1.)
 
 
-class TestShape(TestCase):
+class TestShape(ConfigFieldTestCase):
     def test_construct(self):
         s = Shape()
-        self.assert_(s.valid([1, 4]))
-        self.assert_(s.valid([4, 4]))
-        self.assert_(s.valid([2, 3, 4, 4]))
-        self.assert_(not s.valid([5, 2, 3, 4, 4]))
-        self.assert_(not s.valid([0, 0]))
-        self.assert_(not s.valid([]))
+        s.assert_valid([1, 4])
+        s.assert_valid([4, 4])
+        s.assert_valid([2, 3, 4, 4])
+
+        self.assertNotValid(s, [5, 2, 3, 4, 4])
+        self.assertNotValid(s, [0, 0])
+        self.assertNotValid(s, [])
         self.assertRaisesRegex(
-            ConfigException,
-            re.escape("Shape '[5, 2, 3, 4, 4]' has a dimension of '5'. "
+            ConfigError,
+            re.escape("Shape '(5, 2, 3, 4, 4)' has a dimension of '5'. "
                       "The maximum allowed dimension is 4."),
             s.construct,
-            [5, 2, 3, 4, 4],
-            ctx=InitContext(raise_exceptions=True))
+            self.loader,
+            yaml.compose("[5, 2, 3, 4, 4]"))
         self.assertRaisesRegexp(
-            ConfigException,
+            ConfigError,
             re.escape("No Shape given."),
-            s.construct,
-            None,
-            ctx=InitContext(raise_exceptions=True))
+            s.assert_valid,
+            None)
 
     def test_max_dims(self):
         s = Shape(max_dims=2)
-        self.assert_(s.valid([1, 4]))
-        self.assert_(s.valid([4]))
-        self.assert_(not s.valid([2, 3, 4]))
-        self.assert_(not s.valid([2, 3, 4, 4]))
-        self.assert_(not s.valid([5, 2, 3, 4, 4]))
-        self.assert_(not s.valid([0, 0]))
-        self.assert_(not s.valid([]))
+        s.assert_valid([1, 4])
+        s.assert_valid([4])
+        self.assertNotValid(s, [2, 3, 4])
+        self.assertNotValid(s, [2, 3, 4, 4])
+        self.assertNotValid(s, [5, 2, 3, 4, 4])
+        self.assertNotValid(s, [0, 0])
+        self.assertNotValid(s, [])
 
     def test_dims(self):
         s = Shape(dims=2)
-        self.assert_(s.valid([1, 4]))
-        self.assert_(s.valid([9, 44]))
-        self.assert_(not s.valid([4]))
-        self.assert_(not s.valid([2, 3, 4]))
-        self.assert_(not s.valid([2, 3, 4, 4]))
-        self.assert_(not s.valid([5, 2, 3, 4, 4]))
-        self.assert_(not s.valid([0, 0]))
-        self.assert_(not s.valid([]))
+        s.assert_valid([1, 4])
+        s.assert_valid([9, 44])
+        self.assertNotValid(s, [4])
+        self.assertNotValid(s, [2, 3, 4])
+        self.assertNotValid(s, [2, 3, 4, 4])
+        self.assertNotValid(s, [5, 2, 3, 4, 4])
+        self.assertNotValid(s, [0, 0])
+        self.assertNotValid(s, [])
 
 
 class TestConvolutionLayer(TestCase):
@@ -167,7 +168,6 @@ class TestConvolutionLayer(TestCase):
             self.conv_layers.append(
                 ConvLayer(
                     name=name,
-                    type="Conv",
                     num_feature_maps=p[fm],
                     kernel_h=p[kh],
                     kernel_w=p[kw],
@@ -184,7 +184,6 @@ class TestConvolutionLayer(TestCase):
     def test_init(self):
         conv = ConvLayer(
             name="conv#test_init",
-            type="Conv",
             num_feature_maps=20,
             kernel_w=5,
             kernel_h=5,
@@ -193,7 +192,6 @@ class TestConvolutionLayer(TestCase):
             input_shape=(1, 3, 50, 50)
         )
         self.assertEqual(conv.name, "conv#test_init")
-        self.assertEqual(conv.type, "Conv")
         self.assertEqual(conv.num_feature_maps, 20)
         self.assertEqual(conv.kernel_w, 5)
         self.assertEqual(conv.kernel_h, 5)
@@ -201,7 +199,6 @@ class TestConvolutionLayer(TestCase):
     def test_parameter_shape(self):
         conv = ConvLayer(
             name="conv#test",
-            type="Conv",
             num_feature_maps=20,
             kernel_w=5,
             kernel_h=5,
@@ -230,8 +227,7 @@ class TestConvolutionLayer(TestCase):
 
 
 def create_layer(layer_class, **kwargs):
-        return layer_class(name=layer_class.__name__ + "_test",
-                           type=layer_type(layer_class), **kwargs)
+        return layer_class(name=layer_class.__name__ + "_test", **kwargs)
 
 
 class TestActivationLayers(TestCase):
@@ -274,11 +270,11 @@ class TestPoolingLayer(TestCase):
 
 class TestInnerProductLayer(TestCase):
     def test_inner_prodcut_layer(self):
-        layer = InnerProductLayer(name="innerprod", type="InnerProduct",
+        layer = InnerProductLayer(name="innerprod",
                                   n_units=20,
                                   weight=Parameter(name="weight"),
                                   bias=Parameter(name="bias"),
-                                  input_shape=(1, 3, 28, 28))
+                                  input_shape=(1, 3*28*28))
         layer.fill_parameters()
         np_input = np.random.sample((1, 3, 28, 28))
         reshaped = np.reshape(np_input, (1, -1))
@@ -334,15 +330,14 @@ class TestLRNLayer(TestCase):
         np.testing.assert_almost_equal(out.eval(), naive_lrn(test_np))
 
 
-class TestConnectionParser(TestCase):
+class TestCONNECTIONS(ConfigFieldTestCase):
     def test_parse_layer(self):
-        con_parse = ConnectionsParser()
-        con_parse.ctx = InitContext(raise_exceptions=True)
-        self.assertRaises(ConfigException, con_parse._parse_layer, "")
-        self.assertRaises(ConfigException, con_parse._parse_layer, "ba dfa df")
-        self.assertRaises(ConfigException, con_parse._parse_layer,
+        con_parse = CONNECTIONS()
+        self.assertRaises(ConfigError, con_parse._parse_layer, "")
+        self.assertRaises(ConfigError, con_parse._parse_layer, "ba dfa df")
+        self.assertRaises(ConfigError, con_parse._parse_layer,
                           "[in] layer [out]")
-        self.assertRaises(ConfigException, con_parse._parse_layer,
+        self.assertRaises(ConfigError, con_parse._parse_layer,
                           "bla [in]layer[out]")
 
         self.assertTupleEqual(con_parse._parse_layer("conv"),
@@ -362,8 +357,7 @@ class TestConnectionParser(TestCase):
                               (None, "layer_name_123#$", None))
 
     def test_parse_connection(self):
-        con_parse = ConnectionsParser()
-        con_parse.ctx = InitContext(raise_exceptions=True)
+        con_parse = CONNECTIONS()
 
         self.assertEqual(
             con_parse._parse_connection("from_layer", "to_layer"),
@@ -378,17 +372,18 @@ class TestConnectionParser(TestCase):
                              to_port="in"))
 
     def test_construct(self):
-        con_parse = ConnectionsParser()
-        con_parse.ctx = InitContext(raise_exceptions=True)
+        con_parse = CONNECTIONS()
+        node = ScalarNode(None, "layer1 -> layer2 -> layer3")
         self.assertListEqual(
-            con_parse.construct("layer1 -> layer2 -> layer3"),
+            con_parse.construct(self.loader, node),
             [Connection(from_name="layer1", to_name="layer2"),
              Connection(from_name="layer2", to_name="layer3")]
         )
 
+        node = ScalarNode(None,
+                          "layer1[45] -> [in]layer2[out2] -> layer3[bla]")
         self.assertListEqual(
-            con_parse.construct(
-                "layer1[45] -> [in]layer2[out2] -> layer3[bla]"),
+            con_parse.construct(self.loader, node),
             [
                 Connection(from_name="layer1", from_port="45",
                            to_name="layer2", to_port="in"),
@@ -396,13 +391,8 @@ class TestConnectionParser(TestCase):
                            to_name="layer3")
             ]
         )
-
-        self.assertEqual(con_parse.construct(
-            [Connection(from_name="layer1", to_name="layer2"),
-             {'from_name': 'layer2', 'to_name': 'layer3'}]),
-            [Connection(from_name="layer1", to_name="layer2"),
-             Connection(from_name="layer2", to_name="layer3")])
-
-        self.assertRaises(ConfigException, con_parse.construct({}))
-        self.assertRaises(ConfigException, con_parse.construct(
-            Connection(from_name="layer1", to_name="layer2")))
+        node = yaml.compose("[{from_name: layer1, to_name: layer2}, "
+                            "{from_name: layer2, to_name: layer3}]")
+        self.assertEqual(con_parse.construct(self.loader, node),
+                         [Connection(from_name="layer1", to_name="layer2"),
+                          Connection(from_name="layer2", to_name="layer3")])

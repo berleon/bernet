@@ -20,11 +20,11 @@ import theano.tensor as T
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, \
-    SUBCLASS_OF, EITHER
-from bernet.layer import Layer, WithParameterLayer, format_ports, \
-    ConnectionsParser, MultiInLayer, has_multiple_inputs, has_multiple_outputs
+    ConfigError, config_error, ENUM
+from bernet.layer import WithParameterLayer, format_ports, \
+    CONNECTIONS, MultiInLayer, has_multiple_inputs, has_multiple_outputs, \
+    A_LAYER
 from bernet.loss import NegativeLogLikelihood, MSE
-from bernet.utils import symbolic_tensor_from_shape
 
 
 class Network(ConfigObject):
@@ -60,19 +60,17 @@ class Network(ConfigObject):
     data_sha256 = OPTIONAL(str, doc="The sha256 sum of the file given "
                                     "by `data_url`")
 
-    layers = REPEAT(SUBCLASS_OF(Layer), doc="A list of :class:`.Layer`")
+    layers = REPEAT(A_LAYER, doc="A list of :class:`.Layer`")
 
     connections = OPTIONAL(
-        ConnectionsParser(doc="A list of :class:`.Connection` "),
+        CONNECTIONS(doc="A list of :class:`.Connection` "),
         default=[])
 
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
-        self.ctx = self._get_ctx(kwargs)
         self.data = {}
         if self.data_url is not None and self.data_sha256 is None:
-            self.ctx.error("Field data_url required data_sha256 to be set")
-            return
+            raise ConfigError("Field data_url required data_sha256 to be set")
 
         if self.data_url is not None:
             file_name = kwargs['name'] + "_parameters.npz"
@@ -255,13 +253,13 @@ class Network(ConfigObject):
             self, inputs: 'Theano Expression | dict()'):
         for layer_name, free_in_ports in self.layer_free_in_ports.items():
             if layer_name not in inputs:
-                self.ctx.error("No ports given for layer `{:}` "
-                               "with free ports `{:}`"
-                               .format(layer_name, free_in_ports))
+                raise config_error(
+                    "No ports given for layer `{:}` with free ports `{:}`"
+                    .format(layer_name, free_in_ports))
 
             given_in_ports = list(inputs[layer_name].keys())
             if given_in_ports != free_in_ports:
-                self.ctx.error(
+                raise config_error(
                     "At Layer `{:}`: Ports given by input {:} do not match "
                     "the free ports {:}. "
                     .format(layer_name, format_ports(given_in_ports),
@@ -301,11 +299,10 @@ class Network(ConfigObject):
                 if connected_to_port.count(layer_in_port) > 1:
                     froms = [c.from_str()
                              for c in connections_to_layer]
-                    self.ctx.error("Layer `{}` has multiple connections for "
-                                   "input port `{}`. "
-                                   "The connections are from: {}."
-                                   .format(layer.name, layer_in_port,
-                                           ", ".join(froms)))
+                    raise config_error(
+                        "Layer `{}` has multiple connections for input port "
+                        "`{}`. The connections are from: {}."
+                        .format(layer.name, layer_in_port, ", ".join(froms)))
 
     def _check_incoming_connections(self, layer):
         connections_to_layer = [c for c in self._connections_to(layer)]
@@ -315,10 +312,10 @@ class Network(ConfigObject):
             if len(connections_to_layer) > 1:
                 froms = [c.from_str()
                          for c in connections_to_layer]
-                self.ctx.error("Expected Layer `{}` to have one incoming "
-                               "connection, but it has multiple connections "
-                               "from: {}."
-                               .format(layer.name,  ", ".join(froms)))
+                raise config_error(
+                    "Expected Layer `{}` to have one incoming connection, "
+                    "but it has multiple connections from: {}."
+                    .format(layer.name,  ", ".join(froms)))
 
     def _add_layers_to_connections(self):
         for layer in self.layers:
@@ -378,9 +375,8 @@ class Network(ConfigObject):
 
 
 class SimpleNetwork(Network):
-    loss = OPTIONAL(EITHER(NegativeLogLikelihood, MSE),
-                    default=NegativeLogLikelihood(),
-                    doc="")
+    loss = OPTIONAL(ENUM('NLL', 'MSE'),
+                    default=NegativeLogLikelihood(), doc="")
 
     def free_in_port(self):
         assert len(self.free_in_ports()) == 1

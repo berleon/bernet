@@ -23,7 +23,7 @@ from bernet.utils import print_confusion_matrix, confusion_matrix
 _dir = os.path.dirname(os.path.realpath(__file__))
 
 mnist = MNISTDataset()
-with open(_dir + "/shallow-net.json") as f:
+with open(_dir + "/shallow-net.yaml") as f:
     net = SimpleNetwork.load_json(f)
     trainer = SupervisedTrainer()
     trainer.train(net, mnist)

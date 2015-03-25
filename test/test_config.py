@@ -14,25 +14,56 @@
 
 from unittest import TestCase
 import re
-import unittest
 
 from bernet.config import *
-from bernet.config import _TypeConstructableWrapper, _ConfigObjectType
 
 
-class TestREQUIRED(TestCase):
+class ConfigFieldTestCase(TestCase):
+    def setUp(self):
+        self.loader = Loader("")
+
+    def assertNotValid(self, field, value):
+        self.assertRaises(ConfigError, field.assert_valid, value)
+
+
+class TestCostraint(TestCase):
+    def test_abstract_methods_raise_not_implemented(self):
+        c = Constraint()
+        self.assertRaises(NotImplementedError, c.assert_valid, None, None)
+        self.assertRaises(NotImplementedError, c.construct, None, None)
+        self.assertRaises(NotImplementedError, c.represent, None, None)
+        self.assertRaises(NotImplementedError, c.type_signature)
+
+
+class TestConfigField(TestCase):
+    def test_abstract_methods_raise_not_implemented(self):
+        c = ConfigField()
+        self.assertEqual(c.default(), None)
+        self.assertRaises(NotImplementedError, c.assert_valid, None, None)
+        self.assertRaises(NotImplementedError, c.construct, None, None)
+        self.assertRaises(NotImplementedError, c.represent, None, None)
+        self.assertRaises(NotImplementedError, c.type_signature)
+
+
+class TestREQUIRED(ConfigFieldTestCase):
     def test_required(self):
-        req1 = REQUIRED(int)
-        self.assert_(req1.valid(12))
-        self.assertFalse(req1.valid(None))
-        self.assertFalse(req1.valid(1.1))
+        req = REQUIRED(int)
+        req.assert_valid(12)
+        self.assertNotValid(req, None)
+        self.assertNotValid(req, 1.1)
+
+        node = ScalarNode(None, '210')
+        self.assertEqual(req.construct(self.loader, node), 210)
+
+        node = ScalarNode(None, 'randomfoo')
+        self.assertRaises(ValueError, req.construct, self.loader, node)
 
     def test_required_nested(self):
         req2 = REQUIRED(REPEAT(int))
-        self.assert_(req2.valid([]))
-        self.assert_(req2.valid([2]))
-        self.assert_(req2.valid([2]*10))
-        self.assertFalse(req2.valid([1.1]))
+        req2.assert_valid([])
+        req2.assert_valid([2])
+        req2.assert_valid([2]*10)
+        self.assertNotValid(req2, [1.1])
 
     def test_required_optional_fails(self):
         self.assertRaises(ValueError, REQUIRED, OPTIONAL(int))
@@ -41,141 +72,99 @@ class TestREQUIRED(TestCase):
         self.assertRaises(ValueError, REQUIRED, 15)
 
 
-class TestOPTIONAL(TestCase):
+class TestOPTIONAL(ConfigFieldTestCase):
     def test_optional(self):
         opt = OPTIONAL(int)
-        self.assert_(opt.valid(None))
-        self.assert_(opt.valid(0))
-        self.assertFalse(opt.valid(2.2))
+        opt.assert_valid(None)
+        opt.assert_valid(0)
+        self.assertNotValid(opt, 2.2)
 
     def test_optional_default(self):
         opt = OPTIONAL(float, default=1.)
-        self.assertEqual(opt.construct(0.), 0.)
-        self.assertEqual(opt.construct(None), 1.)
+        node = ScalarNode(None, '0.1234')
+        self.assertEqual(opt.construct(self.loader, node), 0.1234)
+        node.value = 'None'
+        self.assertEqual(opt.construct(self.loader, node), 1.)
 
     def test_optional_nested(self):
         opt = OPTIONAL(REPEAT(int))
-        self.assert_(opt.valid([]))
-        self.assert_(opt.valid(None))
-        self.assert_(opt.valid([2]*10))
-        self.assertFalse(opt.valid([1.1]))
+        opt.assert_valid([])
+        opt.assert_valid(None)
+        opt.assert_valid([2]*10)
+        self.assertNotValid(opt, [1.1])
 
 
-class TestREPEAT(TestCase):
+class TestREPEAT(ConfigFieldTestCase):
     def test_repeat(self):
         rep = REPEAT(float)
-        self.assert_(rep.valid([]))
-        self.assert_(rep.valid([2.2]))
+        rep.assert_valid([])
+        rep.assert_valid([2.2])
+
+        self.assertNotValid(rep, None)
         # float is not a list of float
-        self.assertFalse(rep.valid(2.2))
+        self.assertNotValid(rep, 2.2)
         # list of ints is not a list of floats
-        self.assertFalse(rep.valid([2, 2]))
+        self.assertNotValid(rep, [2, 2])
 
-        self.assertFalse(rep.valid([(4.5,), 2.3]))
+        self.assertNotValid(rep, [(4.5,), 2.3])
 
-    def test_error_handling_list(self):
-        self.assertRaises(ConfigException, Company,
-                          name="Labnet Inc.", employes="nobody")
-        max = Person(name="Max", sex="male", age=20)
-        self.assertRaisesRegex(
-            ConfigException,
-            "Expected a listlike type, but got type Person.\n"
-            "Traceback:\n"
-            "    Field:    employes,\n"
-            "    Object:   Company",
-            Company,
-            name="Labnet Inc.", employes=max)
-
-        self.assertRaisesRegex(
-            ConfigException,
-            "Expected type `Person`, but got value `susi` with type `str`.\n"
-            "Traceback:\n"
-            "    List:     at element [1],\n"
-            "    Field:    employes,\n"
-            "    Object:   Company",
-            Company,
-            name="Labnet Inc.", employes=[max, "susi"])
+    def test_repeat_construct(self):
+        node = yaml.compose('[12, 54]')
+        rep = REPEAT(int)
+        self.assertListEqual(rep.construct(self.loader, node), [12, 54])
 
 
-class TestEITHER(TestCase):
-    def test_one_arg_fails(self):
-        self.assertRaises(ValueError, EITHER, "wrong")
-
+class TestENUM(ConfigFieldTestCase):
     def test_either_fixed_values(self):
-        eth = EITHER("left", "right")
-        self.assert_(eth.valid("right"))
-        self.assert_(eth.valid("left"))
-        self.assertFalse(eth.valid("middle"))
-
-    def test_either_int_str(self):
-        eth = EITHER(str, int)
-        self.assert_(eth.valid("right"))
-        self.assert_(eth.valid("left"))
-
-        self.assert_(eth.valid(14))
-        self.assert_(eth.valid(-1000))
-
-        self.assertFalse(eth.valid(1.4))
-        self.assertFalse(eth.valid(object))
-
-    def test_multiple_true(self):
-        eth2 = EITHER(Person, dict)
-        self.assertRaises(ConfigException, eth2.construct,
-                          {"name": "max", "sex": "male"},
-                          InitContext(raise_exceptions=True))
+        enum = ENUM("left", "right")
+        enum.assert_valid("right")
+        enum.assert_valid("left")
+        self.assertNotValid(enum, "middle")
 
     def test_same_fixed_values(self):
-        self.assertRaises(ValueError, EITHER, "right", "right")
+        self.assertRaises(ValueError, ENUM, "right", "right")
+
+    def test_one_arg_fails(self):
+        self.assertRaises(ValueError, ENUM, "wrong")
 
 
-class TestSUBCLASS_OF(TestCase):
-    class Parent(object):
-        def __eq__(self, other):
-            return type(other) == type(self)
+class TestEITHER(ConfigFieldTestCase):
+    def test_one_arg_fails(self):
+        self.assertRaises(ValueError, EITHER, {"wrong": int})
 
-    class Son(Parent):
-        pass
+    def test_non_string_key_fails(self):
+        self.assertRaises(ValueError, EITHER, {None: str, 'bla': int})
 
-    class Doughter(Parent):
-        pass
+    def test_either_int_str(self):
+        eth = EITHER({'str': str, 'int': int})
+        eth.assert_valid("right")
+        eth.assert_valid("left")
 
-    class Stepson(Son):
-        pass
+        eth.assert_valid(14)
+        eth.assert_valid(-1000)
 
-    def test_subclass_of_exception(self):
-        sub = SUBCLASS_OF(Exception)
-        self.assert_(sub.valid(ValueError("bla")))
-        self.assert_(sub.valid(SyntaxError("bla")))
-        self.assert_(sub.valid(Exception()))
-        self.assert_(not sub.valid(None))
+        self.assertNotValid(eth, 1.4)
+        self.assertNotValid(eth, object)
 
-    def test_subclass_repeated(self):
-        t = TestSUBCLASS_OF
-        rep_sub = REPEAT(SUBCLASS_OF(t.Parent))
-        self.assert_(rep_sub.valid([t.Son(), t.Doughter()]))
-        self.assert_(rep_sub.valid((t.Son(),)))
-        self.assert_(not rep_sub.valid([None]))
-        self.assert_(not rep_sub.valid((t.Doughter, None)))
+    def test_person_dict(self):
+        eth2 = EITHER({'Person': Person, 'dict': dict})
 
-        self.assertListEqual(rep_sub.construct([t.Doughter(), t.Son()]),
-                             [t.Doughter(), t.Son()])
+        person = eth2.construct(self.loader,
+                                yaml.compose('!Person {name: max, sex: male}'))
+        self.assertEqual(person.name, "max")
 
-    def test_subclass_error(self):
-        sub = SUBCLASS_OF(Exception)
-        ctx = InitContext(raise_exceptions=True)
-        self.assertRaisesRegex(
-            ConfigException,
-            re.compile('Got value `\w+` of type `\w+`\.'
-                       ' Expected a subclass of `\w+`'),
-            sub.construct,
-            "wrong", ctx
-        )
+        self.assertRaises(ConfigError, eth2.construct,
+                          self.loader,
+                          yaml.compose('!WRONG_TAG {name: max, sex: male}'))
+
+        dic = eth2.construct(self.loader,
+                             yaml.compose('!dict {name: max, sex: male}'))
+        self.assertEqual(dic['name'], "max")
 
 
 class Person(ConfigObject):
     name = REQUIRED(str, doc="<Person.name docstring>")
-
-    sex = EITHER("female", "male", "x")
+    sex = ENUM("female", "male", "x")
     age = OPTIONAL(int)
 
 
@@ -195,9 +184,9 @@ class TestConfigObject(TestCase):
         self.assertEqual(p.sex, "male")
         self.assertEqual(p.age, 20)
 
-        self.assertRaises(ConfigException,  Person,
+        self.assertRaises(ConfigError,  Person,
                           name=20, sex='female', age=20)
-        self.assertRaises(ConfigException, Person, name='Max', sex='', age=20)
+        self.assertRaises(ConfigError, Person, name='Max', sex='', age=20)
         susi = Person(name='Susi', sex='female')
         self.assertNotEqual(susi, p)
 
@@ -206,33 +195,34 @@ class TestConfigObject(TestCase):
         self.assertEqual(p.sex, "male")
         p.sex = "female"
         self.assertEqual(p.sex, "female")
-        with self.assertRaises(ConfigException):
+        with self.assertRaises(ConfigError):
             p.sex = "wrong"
+
+    def test_yaml_tag_is_classname(self):
+        self.assertEqual(Person.yaml_tag, 'Person')
+        self.assertEqual(Company.yaml_tag, 'Company')
 
     def test_nested(self):
         max = Person(name="Max", sex="male", age=20)
         susi = Person(name='Susi', sex='female')
         c1 = Company(name="Planetron Inc.", employes=[max, susi])
-        c2 = Company(name="Planetron Lichtenstein Inc.", employes=None)
+        c2 = Company(name="Planetron Lichtenstein Inc.", employes=[])
         c3 = Company(name="Ventoex Inc.",
                      employes=[
-                         {"name": "Max", "sex": "male", "age": 20},
-                         {"name": "Susi", "sex": "female"},
+                         Person(name="Max", sex="male", age=20),
+                         Person(name="Susi", sex="female"),
                      ])
 
         self.assertNotEqual(susi, c1)
-        self.assertRaises(ConfigException, Company, name=20, employes=[])
+        self.assertRaises(ConfigError, Company, name=20, employes=[])
 
     def test_error_handling_object(self):
-        self.assertRaises(ConfigException, Person)
+        self.assertRaises(ConfigError, Person)
         self.assertRaisesRegex(
-            ConfigException,
+            ConfigError,
             re.escape(
-                "Expected type `str`, but got value `None` with type "
-                "`NoneType`.\n"
-                "Traceback:\n"
-                "    Field:    name,\n"
-                "    Object:   Person"),
+                "Expected type `str`, but got value `None` of type "
+                "`NoneType`."),
             Person,
             sex="male")
 
@@ -244,46 +234,51 @@ class TestConfigObject(TestCase):
         self.assertEqual(car.n_wheels, 4)
 
     def test_docstrings(self):
-        Person_cls = _ConfigObjectType(
+        Person_cls = ConfigObjectMetaclass(
             "TestClass", (ConfigObject, object),
             {"field": REQUIRED(str, "<TestClass.field docstring>")})
-        docstrings = _ConfigObjectType._docstrings(Person_cls)
+        docstrings = ConfigObjectMetaclass._docstrings(Person_cls)
         self.assertIn(
             ":param field: <TestClass.field docstring>\n"
             ":type field: :class:`.str`",
             docstrings)
 
 
-class TestJsonEncoding(TestCase):
+class TestYamlEncoding(TestCase):
+    def test_simple_load(self):
+        max_yaml = """
+            name: Max
+            sex: male
+            age: 20"""
+        max = load(Person, max_yaml)
+        self.assertEqual(max.name, "Max")
+        self.assertEqual(max.sex, "male")
+        self.assertEqual(max.age, 20)
+
+    def test_simple_dump(self):
+        john = Person(name="John Doe", sex="male", age=20)
+        john.use_yaml_tag = False
+        john_yaml = dump(john, default_flow_style=False)
+        self.assertEqual(john_yaml, 'age: 20\nname: John Doe\nsex: male\n')
+
     def test_simple_encoding(self):
         max = Person(name="Max", sex="male", age=20)
+        max_through_yaml = load(Person, dump(max))
+        self.assertEqual(max, max_through_yaml)
 
-        max_json = Person.loads_json(max.to_json())
-        self.assertEqual(max, max_json)
-
-    def test_complex_encoding(self):
+    def test_complex_dump(self):
         max = Person(name="Max", sex="male", age=20)
-        hans = Person(name="Hans", sex="male", age=26)
-
-        c = Company(name="Planetron Inc.", employes=[max, hans])
-        through_json = Company.loads_json(c.to_json())
-        self.assertEqual(c, through_json)
-
-    def test_wrong_json_fails(self):
-        json_str = """{"name": "Max", "sex": "foo"}"""
-        self.assertRaises(ConfigException, Person.loads_json, json_str)
-
-
-class TestInitContext(TestCase):
-    def test_stack(self):
-        ctx = InitContext()
-        with ctx.step_into("Object", "Person"):
-            with ctx.step_into("Field", "name"):
-                self.assertListEqual(ctx._stack, [("Object", "Person"),
-                                                  ("Field", "name")])
-
-
-class TestTypeConstrutableWrapper(TestCase):
-    def test_is_constructable(self):
-        wrapper = _TypeConstructableWrapper(int)
-        self.assertEqual(wrapper.construct(20, InitContext()), 20)
+        susi = Person(name='Susi', sex='female')
+        c = Company(name="Planetron Inc.", employes=[max, susi])
+        self.maxDiff = None
+        # stable over time
+        self.assertEqual(dump(c), dump(c))
+        self.assertEqual(dump(c),
+                         "employes:\n"
+                         "- age: 20\n"
+                         "  name: Max\n"
+                         "  sex: male\n"
+                         "- name: Susi\n"
+                         "  sex: female\n"
+                         "name: Planetron Inc.\n"
+                         "")

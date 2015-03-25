@@ -1,11 +1,11 @@
 {
   "name": "shallow-net",
   "layers": [
+    !IP
     {
-      "type": "InnerProduct",
       "name": "ip#1",
       "n_units": 256,
-      "input_shape": [1, 1, 28, 28],
+      "input_shape": [1, 784],
       "weight": {
         "name": "ip#1_weight",
         "shape": [1, 1, 256, 764]
@@ -15,15 +15,15 @@
         "shape": [1, 1, 1, 256]
       }
     },
+    !TanH
     {
-      "type": "TanH",
       "name": "tanh#1"
     },
+    !IP
     {
-      "type": "InnerProduct",
       "name": "ip#2",
       "n_units": 10,
-      "input_shape": [1, 1, 1, 256],
+      "input_shape": [1, 256],
       "weight": {
         "name": "ip#2_weight",
         "shape": [1, 1, 256, 10]
@@ -33,8 +33,8 @@
         "shape": [1, 1, 1, 10]
       }
     },
+    !Softmax
     {
-      "type": "Softmax",
       "name": "softmax#1"
     }
   ],

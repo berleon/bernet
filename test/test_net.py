@@ -22,11 +22,10 @@ import theano
 import theano.tensor as T
 import re
 
-import bernet
 from bernet.net import Network
 from bernet.layer import ConvLayer, SoftmaxLayer, ReLULayer, TanHLayer, \
     Connection, InnerProductLayer, ConcatLayer, Parameter
-from bernet.config import ConfigException
+from bernet.config import ConfigError, dump, load
 from bernet.utils import size, sha256_file
 
 
@@ -65,7 +64,7 @@ class TestNetwork(TestCase):
                 n_units=64,
                 weight=Parameter(name="conv#1#weight"),
                 bias=Parameter(name="conv#1#bias"),
-                input_shape=(1, 5, 37, 17),
+                input_shape=(1, 5*37*17),
             ),
             "relu#2": ReLULayer(name="relu#2"),
             "softmax": SoftmaxLayer(name="softmax#1"),
@@ -92,7 +91,9 @@ class TestNetwork(TestCase):
             nn = Network(
                 name="test_net",
                 data_url="file://" + f.name,
-                data_sha256=sha256_file(f)
+                data_sha256=sha256_file(f),
+                layers=[],
+                connections=[]
             )
 
             self.assert_(np.all(nn.data["rand"] == random))
@@ -121,7 +122,7 @@ class TestNetwork(TestCase):
 
     def test_multiple_taken_input_port_throws_exception(self):
         self.assertRaisesRegexp(
-            ConfigException,
+            ConfigError,
             re.escape("Expected Layer `softmax` to have one incoming "
                       "connection, but it has multiple connections from: "
                       "relu, tanh."),
@@ -145,14 +146,14 @@ class TestNetwork(TestCase):
 
         # totally wrong inputs
         self.assertRaises(
-            ConfigException,
+            ConfigError,
             net.layer_outputs,
             {"relu": {"in": input_shape}}
         )
 
         # join#1[from_net_in] is missing
         self.assertRaises(
-            ConfigException,
+            ConfigError,
             net.layer_outputs,
             {"conv#1": {"in": input_shape}}
         )
@@ -203,7 +204,7 @@ class TestNetwork(TestCase):
                             shape=params['ip1_bias']
                         ),
                         n_units=400,
-                        input_shape=(1, 3, 20, 20)
+                        input_shape=(1, 3*20*20)
                     ),
                     ConvLayer(
                         name='conv1',
@@ -247,13 +248,14 @@ class TestNetwork(TestCase):
             f.seek(0)
             self.assertRaises(ValueError, Network,
                               name="test_net", data_url="file://" + f.name,
-                              data_sha256="wrong")
+                              data_sha256="wrong",
+                              layers=[], connections=[])
 
     def test_load_json(self):
         _dir = os.path.dirname(os.path.realpath(__file__))
 
-        with open(_dir + "/../example/shallow-net.json") as f:
-            net = Network.load_json(f)
+        with open(_dir + "/../example/shallow-net.yaml") as f:
+            net = load(Network, f)
             self.assertDictEqual(
                 net.free_in_ports(),
                 {'ip#1': [None]}
@@ -262,7 +264,7 @@ class TestNetwork(TestCase):
                 net.free_out_ports(),
                 {'softmax#1': [None]}
             )
-
+            print(dump(net, default_flow_style=None))
             out = net.forward(np.random.sample((1, 1, 28, 28)))
 
             self.assertTupleEqual(out.shape, (1, 10))
