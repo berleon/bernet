@@ -406,15 +406,3 @@ class SimpleNetwork(Network):
 
     def get_loss(self, out, labels):
         return self.loss.loss(out, labels)
-
-    def confusion_matrix(self, batch, n_examples=1000):
-        x = symbolic_tensor_from_shape('x', batch.data().shape)
-        y = self.net_output(x)
-        true_labels = batch.labels()[:n_examples]
-        fn = theano.function([x], [y])
-        data = batch.data()[:n_examples, :]
-        pred_labels, = fn(data)
-        pred_labels = np.argmax(pred_labels, axis=1)
-        n = np.unique(pred_labels).size
-        return np.bincount(n * true_labels + pred_labels,
-                           minlength=n*n).reshape(n, n)/n_examples

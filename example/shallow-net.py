@@ -18,20 +18,18 @@ import theano
 from bernet.net import SimpleNetwork
 from bernet.optimization import SupervisedTrainer
 from bernet.dataset import MNISTDataset
-from bernet.utils import print_confusion_matrix
+from bernet.utils import print_confusion_matrix, confusion_matrix
 
 _dir = os.path.dirname(os.path.realpath(__file__))
-print(theano.config)
 
 mnist = MNISTDataset()
 with open(_dir + "/shallow-net.json") as f:
     net = SimpleNetwork.load_json(f)
     trainer = SupervisedTrainer()
     trainer.train(net, mnist)
-    train_confusion = net.confusion_matrix(next(mnist.train_epoch()))
-    test_confusion = net.confusion_matrix(next(mnist.test_epoch()))
-    print_confusion_matrix(train_confusion)
-    print()
-    print_confusion_matrix(test_confusion)
+    test_epoch = next(mnist.test_epoch())
+    pred_test = net.forward(test_epoch.data())
+    confusion = confusion_matrix(pred_test, test_epoch.labels())
+    print_confusion_matrix(confusion)
 
 

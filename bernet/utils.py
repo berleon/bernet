@@ -112,6 +112,13 @@ def shared_like(shared_tensor, name, init=0):
                          name="{}_{}".format(shared_tensor.name, name))
 
 
+def confusion_matrix(pred_labels, true_labels):
+    n_cls = np.unique(pred_labels).size
+    n_examples = true_labels.size
+    return np.bincount(n_cls * true_labels + pred_labels,
+                       minlength=n_cls*n_cls).reshape(n_cls, n_cls)/n_examples
+
+
 def print_confusion_matrix(matrix):
     from termcolor import colored
     n = matrix.shape[0]
