@@ -457,6 +457,9 @@ class InnerProductLayer(ParameterLayer):
         else:
             return ip
 
+    def output_shape(self, input_shape: tuple):
+        return input_shape[0], self.n_units
+
 
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
