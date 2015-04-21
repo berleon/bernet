@@ -269,7 +269,7 @@ class TestPoolingLayer(TestCase):
 
 
 class TestInnerProductLayer(TestCase):
-    def test_inner_prodcut_layer(self):
+    def test_inner_product_layer(self):
         layer = InnerProductLayer(name="innerprod",
                                   n_units=20,
                                   weight=Parameter(name="weight"),
