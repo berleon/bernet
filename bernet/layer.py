@@ -420,13 +420,23 @@ class ConvLayer(ParameterLayer):
 
 class InnerProductLayer(ParameterLayer):
     n_units = REQUIRED(int)
-    weight = REQUIRED(Parameter)
-    bias = REQUIRED(Parameter)
+    weight = OPTIONAL(Parameter)
+    bias = OPTIONAL(EITHER(Parameter, bool))
     input_shape = REQUIRED(Shape(dims=2), doc="Shape of the input tensor.")
 
     def __init__(self, **kwargs):
+        if "weight" not in kwargs:
+            kwargs["weight"] = Parameter(name=kwargs['name'] + '_weight')
+        if "bias" in kwargs and type(kwargs['bias']) == bool:
+            if kwargs['bias']:
+                kwargs['bias'] = Parameter(name=kwargs['name'] + '_bias')
+            else:
+                del kwargs['bias']
+
         super().__init__(**kwargs)
-        self.parameters = [self.weight, self.bias]
+        self.parameters = [self.weight]
+        if self.bias is not None:
+            self.parameters.append(self.bias)
 
     def _parameter_shape(self, param: Parameter):
         in_size = self.input_shape[-1]
@@ -441,7 +451,11 @@ class InnerProductLayer(ParameterLayer):
         return 2
 
     def _output(self, input):
-        return T.dot(input, self.weight.shared) + self.bias.shared
+        ip = T.dot(input, self.weight.shared.T)
+        if self.bias is not None:
+            return ip + self.bias.shared
+        else:
+            return ip
 
 
 class PoolingLayer(Layer):
