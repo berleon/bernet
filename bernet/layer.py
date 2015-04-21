@@ -182,11 +182,13 @@ class Layer(ConfigObject):
         raise NotImplementedError
 
     def output(self, input: 'Theano Expression'):
-        """
-        :param input: dict of {"<input_port>": symbolic tensor variable}
-        """
         reshaped_input = self._reshape(input)
         return self._output(reshaped_input)
+
+    def output_shape(self, input_shape: tuple):
+        out = self.output(T.zeros(input_shape))
+        with fast_compile():
+            return tuple(out.shape.eval())
 
     def _output(self, input):
         raise NotImplementedError("Please use a subclass of Layer")
