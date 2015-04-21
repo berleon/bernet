@@ -338,13 +338,16 @@ class ConvLayer(WithParameterLayer):
     # kernel height
     kernel_h = REQUIRED(int)
 
-    # number of pixels the filter moves in vertical direction
-    stride_v = OPTIONAL(int, default=1)
-    # number of pixels the filter moves in horizontal direction
-    stride_h = OPTIONAL(int, default=1)
+    stride_v = OPTIONAL(int, default=1,
+                        doc="Number of pixels the filter moves in vertical "
+                            "direction.")
+    stride_h = OPTIONAL(int, default=1,
+                        doc="Number of pixels the filter moves in horizontal "
+                            "direction.")
 
-    # `valid` or `full`. Default is `valid`. see scipy.signal.convolve2d
-    border_mode = OPTIONAL(ENUM("valid", "full"), default="valid")
+    group = OPTIONAL(int, default=1)
+
+    border_mode = OPTIONAL(ENUM("valid", "full", "same"), default="valid")
 
     input_shape = REQUIRED(Shape(dims=4), doc="""Shape of the input tensor""")
 
@@ -353,15 +356,18 @@ class ConvLayer(WithParameterLayer):
         self.parameters = [self.bias, self.weight]
 
     def _parameter_shape(self, param):
+        if param.shape is not None:
+            return param.shape
+
         if param == self.weight:
-            print("Shape of {} is {}".format(self.name, self.filter_shape()))
+            print("Shape of {} is {}".format(param.name, self.filter_shape()))
             return self.filter_shape()
         if param == self.bias:
             return self.bias_shape()
 
     def filter_shape(self):
         return (self.num_feature_maps,
-                chans(self.input_shape),
+                chans(self.input_shape) // self.group,
                 self.kernel_h,
                 self.kernel_w)
 
@@ -369,18 +375,47 @@ class ConvLayer(WithParameterLayer):
         shp = self.filter_shape()
         return shp[0],
 
+    def _reshape(self, input: 'Theano Expression'):
+        return T.reshape(input, self.input_shape)
+
     def _output(self, input):
         assert self.weight.tensor is not None
-        conv_out = T.nnet.conv2d(
-            input=input,
-            image_shape=self.input_shape,
-            filters=self.weight.shared,
-            filter_shape=self.filter_shape(),
-            subsample=(self.stride_h, self.stride_v),
-            border_mode=self.border_mode,
-        )
-        return conv_out + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
+        in_chan = chans(self.input_shape) // self.group
+        f = self.num_feature_maps // self.group
+        filter_shape = (f, ) + self.filter_shape()[1:]
+        input_shape = self.input_shape[:1] + (in_chan, ) + self.input_shape[2:]
+        conv_outs = []
+        if self.border_mode == 'same':
+            border_mode = 'full'
+        else:
+            border_mode = self.border_mode
+        for i in range(self.group):
+            conv_out = T.nnet.conv2d(
+                input=input[:, in_chan*i:in_chan*(i+1), :],
+                image_shape=input_shape,
+                filters=self.weight.shared[f*i:f*(i+1), :],
+                filter_shape=filter_shape,
+                subsample=(self.stride_h, self.stride_v),
+                border_mode=border_mode,
+            )
+            if self.border_mode == 'same':
+                conv_out = self._fix_same_border_mode(conv_out)
+            conv_outs.append(conv_out)
 
+        concated = T.concatenate(conv_outs, axis=1)
+        if self.bias is None:
+            return concated
+        else:
+            return concated + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
+
+    def _fix_same_border_mode(self, conv_out):
+        hb = (conv_out.shape[-2] - h(self.input_shape)) // 2
+        he = hb + h(self.input_shape)
+
+        wb = (conv_out.shape[-1] - w(self.input_shape)) // 2
+        we = wb + w(self.input_shape)
+
+        return conv_out[:, :, hb:he, wb:we]
 
 class InnerProductLayer(WithParameterLayer):
     n_units = REQUIRED(int)
