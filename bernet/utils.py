@@ -163,3 +163,7 @@ class fast_compile(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         theano.config.mode = self.saved_mode
+
+
+def prod(factors):
+    return reduce(operator.mul, factors, 1)
