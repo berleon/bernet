@@ -278,7 +278,7 @@ class TestInnerProductLayer(TestCase):
         layer.fill_parameters()
         np_input = np.random.sample((1, 3, 28, 28))
         reshaped = np.reshape(np_input, (1, -1))
-        np_output = np.dot(reshaped, layer.weight.tensor) + layer.bias.tensor
+        np_output = np.dot(reshaped, layer.weight.tensor.T) + layer.bias.tensor
         input = theano.shared(np_input)
         np.testing.assert_almost_equal(
             layer.output(input).eval(),

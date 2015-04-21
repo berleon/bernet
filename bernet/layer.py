@@ -439,11 +439,9 @@ class InnerProductLayer(ParameterLayer):
             self.parameters.append(self.bias)
 
     def _parameter_shape(self, param: Parameter):
-        in_size = self.input_shape[-1]
+        in_size = prod(self.input_shape[1:])
         if param == self.weight:
-            print("Shape of {} is {}.".format(self.name,
-                                              (in_size, self.n_units)))
-            return in_size, self.n_units
+            return self.n_units, in_size
         elif param == self.bias:
             return self.n_units,
 
