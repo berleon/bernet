@@ -315,7 +315,50 @@ class TAGS(ConfigField):
             return str(types[0])
 
 
+class EITHER(ConfigField):
+    def __init__(self, *types, doc="", type_sig=""):
+        super().__init__(doc=doc, type_sig=type_sig)
+        self.types = types
+        self.constraints = [Constraint.factory(t) for t in types]
+
+    def assert_valid(self, value, node=None):
+        if type(value) not in self.types:
+            raise config_error("Expected type of value to be one of [{}], "
+                               "but got type `{}`"
+                               .format(', '.join(
+                                   map(lambda t: t.__name__, self.types)),
+                                   type(value).__name__))
+
+    def represent(self, dumper, value):
         for c in self.constraints:
+            try:
+                c.assert_valid(value)
+                return c.represent(dumper, value)
+            except ConfigError:
+                pass
+
+        raise config_error("EITHER({}): Could not find a suitable representer"
+                           " for value `{}` of type `{}`."
+                           .format(', '.join(self.types), value, type(value)))
+
+    def construct(self, loader, node):
+        for c in self.constraints:
+            try:
+                value = c.construct(loader, node)
+                c.assert_valid(value, node)
+                return value
+            except ConfigError:
+                pass
+            except ValueError:
+                pass
+
+        raise config_error("EITHER({}): Could not construct value."
+                           .format(', '.join(self.types)), node)
+
+    def type_signature(self):
+        return "either " + ' | '.join(self.types)
+
+
 class REPEAT(ConfigField):
     def __init__(self, tpe, doc="", type_sig=""):
         super().__init__(doc=doc, type_sig=type_sig)

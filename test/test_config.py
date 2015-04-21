@@ -21,6 +21,7 @@ from bernet.config import *
 class ConfigFieldTestCase(TestCase):
     def setUp(self):
         self.loader = Loader("")
+        self.dumper = Dumper("")
 
     def assertNotValid(self, field, value):
         self.assertRaises(ConfigError, field.assert_valid, value)
@@ -160,6 +161,37 @@ class TestTAGS(ConfigFieldTestCase):
         dic = eth2.construct(self.loader,
                              yaml.compose('!dict {name: max, sex: male}'))
         self.assertEqual(dic['name'], "max")
+
+
+class TestEITHER(ConfigFieldTestCase):
+    def test_assert_valid(self):
+        eth = EITHER(str, int)
+        eth.assert_valid("hello world!")
+        eth.assert_valid("")
+        eth.assert_valid(0)
+        eth.assert_valid(-2000)
+        eth.assert_valid(100000000000)
+
+        self.assertNotValid(eth, None)
+        self.assertNotValid(eth, 1.)
+        self.assertNotValid(eth, [3, 45])
+
+    def test_construct(self):
+        eth = EITHER(Person, bool)
+        self.assertEqual(True,
+                         eth.construct(self.loader, yaml.compose("yes")))
+
+        self.assertEqual(
+            Person(name='max', sex='male'),
+            eth.construct(self.loader,
+                          yaml.compose('!Person {name: max, sex: male}'))
+        )
+
+    def test_represent(self):
+        eth = EITHER(Person, bool)
+        self.assertEqual("true", eth.represent(self.dumper, True).value)
+        leon = eth.represent(self.dumper, Person(name='leon', sex='male'))
+        self.assertEqual("Person", leon.tag)
 
 
 class Person(ConfigObject):
