@@ -1,42 +1,23 @@
-{
-  "name": "shallow-net",
-  "layers": [
-    !IP
-    {
-      "name": "ip#1",
-      "n_units": 256,
-      "input_shape": [1, 784],
-      "weight": {
-        "name": "ip#1_weight",
-        "shape": [1, 1, 256, 764]
-      },
-      "bias": {
-        "name": "ip#1_bias",
-        "shape": [1, 1, 1, 256]
-      }
-    },
-    !TanH
-    {
-      "name": "tanh#1"
-    },
-    !IP
-    {
-      "name": "ip#2",
-      "n_units": 10,
-      "input_shape": [1, 256],
-      "weight": {
-        "name": "ip#2_weight",
-        "shape": [1, 1, 256, 10]
-      },
-      "bias": {
-        "name": "ip#2_bias",
-        "shape": [1, 1, 1, 10]
-      }
-    },
-    !Softmax
-    {
-      "name": "softmax#1"
-    }
-  ],
-  "connections": ["ip#1 -> tanh#1 -> ip#2 -> softmax#1"]
-}
+name: shallow-net
+input_shape: [&bs 64, 1, 16, 16]
+layers:
+- !InnerProduct
+  name: ip#1
+  n_units: 256
+  input_shape: [*bs, 784]
+  bias: yes
+
+- !TanH
+  name: tanh#1
+  source: ip#1
+
+- !InnerProduct
+  name: ip#2
+  source: tanh#1
+  n_units: 10
+  input_shape: [*bs, 256]
+  bias: yes
+
+- !Softmax
+  name: softmax#1
+  source: ip#2
