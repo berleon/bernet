@@ -19,7 +19,6 @@ import numpy as np
 import yaml
 from yaml import YAMLObjectMetaclass, SequenceNode, ScalarNode, \
     Loader, Dumper
-from yaml.constructor import ConstructorError
 
 try:
     import simplejson as json
@@ -506,12 +505,14 @@ class ConfigObject(object, metaclass=ConfigObjectMetaclass):
             self._add_property(field_name)
             self._set_property(field_name, field_value)
 
-        valid_keys = list(self.__config_fields__.keys()) + ["__ctx__"]
+        valid_keys = list(self.__config_fields__.keys())
 
-        for k, arg in kwargs.items():
-            if k not in valid_keys:
-                raise ValueError("{!r} is not in the allowed keys `{!s}`"
-                                 .format(k, valid_keys))
+        for arg, value in kwargs.items():
+            if arg not in valid_keys:
+                raise ValueError("[{}]: Got argument {!r}, but expected "
+                                 "arguement to be one of {!s}"
+                                 .format(self.__class__.__name__,
+                                         arg, value, ", ".join(valid_keys)))
 
     def _add_property(self, name):
         def fget(self):
@@ -538,9 +539,18 @@ class ConfigObject(object, metaclass=ConfigObjectMetaclass):
         for key_node, value_node in node.value:
             key = loader.construct_object(key_node)
             if key not in cls.__config_fields__:
-                pass
+                raise config_error(
+                    "Got key `{}`, but expected one of {}"
+                    .format(key, ', '.join(cls.__config_fields__.keys())),
+                    key_node)
             value = cls.__config_fields__[key].construct(loader, value_node)
             data[key] = value
+        given_keys = [k.value for k, v in node.value]
+        for name, config_field in cls.__config_fields__.items():
+            if type(config_field) == REQUIRED and name not in given_keys:
+                raise config_error("Required field `{}` not given."
+                                   .format(name), node)
+
         return cls(**data)
 
     @classmethod
