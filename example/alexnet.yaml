@@ -1,0 +1,164 @@
+name: AlexNet
+description: "AlexNet from the Paper: Krizhevsky, A., Sutskever, I., and Hinton, G.\
+  \ (2012). ImageNet classification with deep convolutional neural networks. In NIPS\u2019\
+  2012."
+batch_size: &bs 1
+input_shape: [*bs, 3, 224, 224]
+layers:
+- !Conv
+  name: conv#1
+  input_shape: [*bs, 3, 224, 224]
+  kernel_h: 11
+  kernel_w: 11
+  num_feature_maps: 96
+  stride_h: 4
+  stride_v: 4
+  weight:
+    name: conv#1_weight
+  bias:
+    name: conv#1_bias
+- !ReLU
+  name: relu#1
+  source: conv#1
+
+- !LRN
+  name: lrn#1
+  source: relu#1
+
+- !Pooling
+  name: pool#1
+  source: lrn#1
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !Conv
+  name: conv#2
+  source: pool#1
+  input_shape: [*bs, 96, 27, 27]
+  group: 2
+  kernel_h: 5
+  kernel_w: 5
+  border_mode: same
+  num_feature_maps: 256
+  weight:
+    name: conv#2_weight
+  bias:
+    name: conv#2_bias
+
+- !ReLU
+  name: relu#2
+  source: conv#2
+
+- !LRN
+  name: lrn#2
+  source: relu#2
+
+
+- !Pooling
+  name: pool#2
+  source: lrn#2
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !Conv
+  name: conv#3
+  source: pool#2
+  bias:
+    name: conv#3_bias
+  input_shape: [*bs, 256, 13, 13]
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 384
+  border_mode: same
+  weight:
+    name: conv#3_weight
+
+- !ReLU
+  name: relu#3
+  source: conv#3
+
+- !Conv
+  name: conv#4
+  source: relu#3
+  input_shape: [*bs, 384, 13, 13]
+  group: 2
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 384
+  border_mode: same
+  weight:
+    name: conv#4_weight
+  bias:
+    name: conv#4_bias
+
+- !ReLU
+  name: relu#4
+  source: conv#4
+
+
+- !Conv
+  name: conv#5
+  source: relu#4
+  input_shape: [*bs, 384, 13, 13]
+  group: 2
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 256
+  border_mode: same
+  weight:
+    name: conv#5_weight
+  bias:
+    name: conv#5_bias
+
+- !ReLU
+  name: relu#5
+  source: conv#5
+
+- !Pooling
+  name: pool#5
+  source: relu#5
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !InnerProduct
+  name: ip#6
+  source: pool#5
+  input_shape: [*bs, 9216]
+  n_units: 4096
+  weight:
+    name: ip#6_weight
+  bias:
+    name: ip#6_bias
+
+- !ReLU
+  name: relu#6
+  source: ip#6
+
+- !InnerProduct
+  name: ip#7
+  source: relu#6
+  input_shape: [*bs, 4096]
+  n_units: 4096
+  weight:
+    name: ip#7_weight
+  bias:
+    name: ip#7_bias
+
+- !ReLU
+  name: relu#7
+  source: ip#7
+
+- !InnerProduct
+  name: ip#8
+  source: relu#7
+  input_shape: [*bs, 4096]
+  n_units: 1000
+  weight:
+    name: ip#8_weight
+  bias:
+    name: ip#8_bias
+
+- !Softmax
+  name: softmax#8
+  source: ip#8
+
