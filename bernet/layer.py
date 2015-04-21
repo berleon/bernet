@@ -710,3 +710,10 @@ class Connection(ConfigObject):
 
     def to_str(self):
         return self._format_name_port(self.to_name, self.to_port)
+
+    @classmethod
+    def create_from_layers(cls, from_layer: Layer, to_layer: Layer):
+        con = Connection(from_name=from_layer.name, to_name=to_layer.name)
+        con.from_layer = from_layer
+        con.to_layer = to_layer
+        return con
