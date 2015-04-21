@@ -128,26 +128,26 @@ class TestENUM(ConfigFieldTestCase):
         self.assertRaises(ValueError, ENUM, "wrong")
 
 
-class TestEITHER(ConfigFieldTestCase):
+class TestTAGS(ConfigFieldTestCase):
     def test_one_arg_fails(self):
-        self.assertRaises(ValueError, EITHER, {"wrong": int})
+        self.assertRaises(ValueError, TAGS, {"wrong": int})
 
     def test_non_string_key_fails(self):
-        self.assertRaises(ValueError, EITHER, {None: str, 'bla': int})
+        self.assertRaises(ValueError, TAGS, {None: str, 'bla': int})
 
-    def test_either_int_str(self):
-        eth = EITHER({'str': str, 'int': int})
-        eth.assert_valid("right")
-        eth.assert_valid("left")
+    def test_tags_int_str(self):
+        tags = TAGS({'str': str, 'int': int})
+        tags.assert_valid("right")
+        tags.assert_valid("left")
 
-        eth.assert_valid(14)
-        eth.assert_valid(-1000)
+        tags.assert_valid(14)
+        tags.assert_valid(-1000)
 
-        self.assertNotValid(eth, 1.4)
-        self.assertNotValid(eth, object)
+        self.assertNotValid(tags, 1.4)
+        self.assertNotValid(tags, object)
 
     def test_person_dict(self):
-        eth2 = EITHER({'Person': Person, 'dict': dict})
+        eth2 = TAGS({'Person': Person, 'dict': dict})
 
         person = eth2.construct(self.loader,
                                 yaml.compose('!Person {name: max, sex: male}'))

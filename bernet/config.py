@@ -251,12 +251,12 @@ class ENUM(ConfigField):
         return " | ".join("`{}`".format(self.symbolic_strs))
 
 
-class EITHER(ConfigField):
+class TAGS(ConfigField):
     def __init__(self, tag_types_dict, doc="", type_sig=""):
         super().__init__(doc=doc, type_sig=type_sig)
 
         if len(tag_types_dict) < 2:
-            raise ValueError("EITHER expects at least 2 elements.")
+            raise ValueError("TAGS expects at least 2 elements.")
 
         for tag, tpe in tag_types_dict.items():
             if type(tag) != str:
@@ -315,6 +315,7 @@ class EITHER(ConfigField):
             return str(types[0])
 
 
+        for c in self.constraints:
 class REPEAT(ConfigField):
     def __init__(self, tpe, doc="", type_sig=""):
         super().__init__(doc=doc, type_sig=type_sig)
