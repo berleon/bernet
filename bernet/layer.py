@@ -410,12 +410,14 @@ class InnerProductLayer(WithParameterLayer):
 
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
+    stride = OPTIONAL(Shape(max_dims=2), default=(1, 1))
     ignore_border = OPTIONAL(bool, default=False)
 
     def _output(self, input):
         return theano.tensor.signal.downsample.max_pool_2d(
             input=input,
             ds=self.poolsize,
+            st=self.stride,
             ignore_border=self.ignore_border
         )
 
