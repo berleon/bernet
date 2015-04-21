@@ -18,6 +18,7 @@ from functools import reduce
 
 import numpy as np
 import theano
+from theano.compile import FAST_COMPILE
 import theano.tensor as T
 
 
@@ -153,3 +154,12 @@ def print_confusion_matrix(matrix):
                     return colored(formated, 'red', attrs=['bold'])
 
         print(" ".join([with_color(i, j) for j in range(n)]))
+
+
+class fast_compile(object):
+    def __enter__(self):
+        self.saved_mode = theano.config.mode
+        theano.config.mode = 'FAST_COMPILE'
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        theano.config.mode = self.saved_mode
