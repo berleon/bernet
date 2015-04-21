@@ -24,7 +24,7 @@ from yaml import ScalarNode, SequenceNode, MappingNode
 from bernet.config import REQUIRED, OPTIONAL, TAGS, REPEAT, ConfigObject, \
     ConfigField, ENUM, config_error, EITHER
 
-from bernet.utils import chans, bs, w, h
+from bernet.utils import chans, bs, w, h, fast_compile, prod
 
 # # # # # # # # # # # # # # # # # - Utilities - # # # # # # # # # # # # # # # #
 
