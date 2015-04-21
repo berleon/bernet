@@ -163,7 +163,12 @@ def layer_type(cls):
 
 
 class Layer(ConfigObject):
-    name = REQUIRED(str)
+    name = REQUIRED(str, doc="The name of the layer. The names within a "
+                             "Network must be unique.")
+    source = OPTIONAL(str, doc="Use the output of the `source` layer as input "
+                               "of this layer.`TanhLayer(name=\"tanh#1\", "
+                               "source=\"conv#1\")` uses the output of "
+                               "`conv#1` as its input.")
 
     def __init__(self, **kwargs):
         """
@@ -172,7 +177,6 @@ class Layer(ConfigObject):
             :param parameters: list of [..] TODO
             """
         super().__init__(**kwargs)
-        self._connected = False
 
     def copy(self):
         raise NotImplementedError
