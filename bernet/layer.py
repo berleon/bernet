@@ -294,7 +294,7 @@ class MultiOutLayer(Layer):
         raise NotImplementedError()
 
 
-class WithParameterLayer(Layer):
+class ParameterLayer(Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.parameters = []
@@ -327,7 +327,7 @@ class WithParameterLayer(Layer):
         return T.as_tensor_variable(0)
 
 
-class ConvLayer(WithParameterLayer):
+class ConvLayer(ParameterLayer):
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
 
@@ -417,7 +417,8 @@ class ConvLayer(WithParameterLayer):
 
         return conv_out[:, :, hb:he, wb:we]
 
-class InnerProductLayer(WithParameterLayer):
+
+class InnerProductLayer(ParameterLayer):
     n_units = REQUIRED(int)
     weight = REQUIRED(Parameter)
     bias = REQUIRED(Parameter)
