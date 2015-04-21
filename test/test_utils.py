@@ -34,7 +34,7 @@ class TestUtils(TestCase):
 
     def test_sha256_file(self):
         with tempfile.NamedTemporaryFile("w+b") as f:
-            sha256sum = sha256_file(f)
+            sha256sum = sha256_of_file(f)
             self.assertEqual(sha256sum,
                              hashlib.sha256("".encode("utf-8")).hexdigest())
             self.assertEqual(

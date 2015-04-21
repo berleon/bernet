@@ -44,7 +44,7 @@ def download(url: str, file) -> bool:
     file.flush()
 
 
-def sha256_file(file, block_size: int=65536) -> str:
+def sha256_of_file(file, block_size: int=65536) -> str:
     sha = hashlib.sha256()
 
     file.seek(0)
