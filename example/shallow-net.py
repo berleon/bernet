@@ -13,18 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import theano
 
-from bernet.net import SimpleNetwork
+from bernet.net import FeedForwardNet
 from bernet.optimization import SupervisedTrainer
 from bernet.dataset import MNISTDataset
 from bernet.utils import print_confusion_matrix, confusion_matrix
+from bernet.config import load
 
 _dir = os.path.dirname(os.path.realpath(__file__))
 
 mnist = MNISTDataset()
 with open(_dir + "/shallow-net.yaml") as f:
-    net = SimpleNetwork.load_json(f)
+    net = load(FeedForwardNet, f)
     trainer = SupervisedTrainer()
     trainer.train(net, mnist)
     test_epoch = next(mnist.test_epoch())

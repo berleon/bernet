@@ -21,7 +21,7 @@ import time
 
 from bernet.config import OPTIONAL, ConfigObject
 from bernet.dataset import Dataset
-from bernet.net import SimpleNetwork
+from bernet.net import FeedForwardNet
 from bernet.utils import shared_like, shared_tensor_from_dims, \
     symbolic_tensor_from_dims
 
@@ -82,13 +82,13 @@ class SupervisedTrainer(ConfigObject):
     min_improvement = OPTIONAL(float, default=0.01)
     max_epochs = OPTIONAL(int)
 
-    def train(self, network: SimpleNetwork, dataset: Dataset):
+    def train(self, network: FeedForwardNet, dataset: Dataset):
         trainer_state = SupervisedTrainerState(network, dataset, self)
         trainer_state.train()
 
 
 class SupervisedTrainerState(object):
-    def __init__(self, network, dataset, train_opt):
+    def __init__(self, network: FeedForwardNet, dataset, train_opt):
         self.network = network
         self.dataset = dataset
         self.train_opt = train_opt
@@ -162,7 +162,7 @@ class SupervisedTrainerState(object):
                       valid_accuracy_str,
                       best_mark))
 
-    def epoche_iter(self, network: SimpleNetwork, dataset: Dataset) -> dict:
+    def epoche_iter(self, network: FeedForwardNet, dataset: Dataset) -> dict:
         while True:
             start = time.time()
             train_losses = list(self.run_train_epoch())
@@ -201,7 +201,7 @@ class SupervisedTrainerState(object):
         idx_begin = T.lscalar('idx_begin')
         idx_end = T.lscalar('idx_end')
         batch_slice = slice(idx_begin, idx_end)
-        out = self.network.net_output(x)
+        out = self.network.output(x)
         loss = self.network.get_loss(out, labels)
         accuracy = self.network.get_accuracy(out, labels)
         self.validate_params = self.network.parameters_as_shared()
@@ -220,7 +220,7 @@ class SupervisedTrainerState(object):
         y = T.vector('y')
         idx_begin = T.lscalar('idx_begin')
         idx_end = T.lscalar('idx_end')
-        out = self.network.net_output(x)
+        out = self.network.output(x)
         loss = self.network.get_loss(out, y)
         self.train_params = self.network.parameters_as_shared()
         fn = theano.function(
