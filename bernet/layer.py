@@ -21,8 +21,8 @@ from theano.tensor.nnet import conv2d
 import theano.tensor.signal.downsample
 from yaml import ScalarNode, SequenceNode, MappingNode
 
-from bernet.config import REQUIRED, OPTIONAL, EITHER, REPEAT, ConfigObject, \
-    ConfigField, ENUM, config_error
+from bernet.config import REQUIRED, OPTIONAL, TAGS, REPEAT, ConfigObject, \
+    ConfigField, ENUM, config_error, EITHER
 
 from bernet.utils import chans, bs, w, h
 
@@ -656,9 +656,9 @@ to_name=relu#1, to_port=None)
     def type_signature(self):
         return "list of :class:`.Connection`"
 
-A_LAYER = EITHER({
+ANY_LAYER = TAGS({
     "Conv": ConvLayer,
-    "IP": InnerProductLayer,
+    "InnerProduct": InnerProductLayer,
     "TanH": TanHLayer,
     "Softmax": SoftmaxLayer,
     "Sigmoid": SigmoidLayer,
