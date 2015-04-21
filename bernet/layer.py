@@ -103,7 +103,7 @@ class Shape(REPEAT):
 
     def assert_valid(self, listlike, node=None):
         if listlike is None:
-            raise config_error("No Shape given.")
+            raise config_error("No Shape given.", node=node)
 
         dims = len(listlike)
 
