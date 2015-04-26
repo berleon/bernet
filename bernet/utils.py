@@ -167,3 +167,9 @@ class fast_compile(object):
 
 def prod(factors):
     return reduce(operator.mul, factors, 1)
+
+
+def chunks(list, n):
+    """ Yield successive n-sized chunks from list l. """
+    for i in range(0, len(list), n):
+        yield list[i:i+n]

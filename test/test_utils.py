@@ -74,3 +74,9 @@ class TestUtils(TestCase):
             [0,  2,  3,  7, 70,  0],
             [1,  2,  5,  8, 10, 50]])
         print_confusion_matrix(matrix / matrix.sum())
+
+    def test_chunk(self):
+        chunked = chunks(range(11), 4)
+        self.assertListEqual(list(map(list, chunked)),
+                             [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10]])
+
