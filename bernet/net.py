@@ -67,7 +67,7 @@ class Network(ConfigObject):
         super().__init__(**kwargs)
         self.data = {}
         if self.data_url is not None and self.data_sha256 is None:
-            raise ConfigError("Field data_url required data_sha256 to be set")
+            raise ConfigError("Field data_url requires data_sha256 to be set")
 
         if self.data_url is not None:
             file_name = kwargs['name'] + "_parameters.npz"
@@ -85,7 +85,19 @@ class Network(ConfigObject):
                                  .format(sha256_expected, sha256_got, url))
             f.seek(0)
             npzfile = np.load(f)
-            return {n: npzfile[n] for n in npzfile.files}
+            npz_dict = {n: np.asarray(npzfile[n], dtype=theano.config.floatX)
+                        for n in npzfile.files}
+            parameter_names = [p.name for p in self.parameters()]
+            for name in npz_dict.keys():
+                assert name in parameter_names, \
+                    "Got parameter `{}` in file `{}`, but there is no " \
+                    "parameter in the network with this name.\n" \
+                    "Parameter names in file:    [{}]\n" \
+                    "Parameter names in network: [{}]" \
+                    .format(name, self.data_url,
+                            ", ".join(sorted(npz_dict.keys())),
+                            ", ".join(sorted(parameter_names)))
+            return npz_dict
 
     def get_layer(self, name):
         """Return the layer with layer.name == `name`. If no such layer
