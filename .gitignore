@@ -29,6 +29,10 @@ var/
 *.manifest
 *.spec
 
+# Numpy Files
+*.npy
+*.npz
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
