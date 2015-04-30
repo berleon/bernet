@@ -220,82 +220,6 @@ class Layer(ConfigObject):
         return None
 
 
-def has_multiple_inputs(layer):
-    return issubclass(type(layer), MultiInLayer)
-
-
-def has_multiple_outputs(layer):
-    return issubclass(type(layer), MultiOutLayer)
-
-
-class MultiInLayer(Layer):
-    def input_ports(self):
-        raise NotImplementedError()
-
-    def _expected_shape(self):
-        return None
-
-    def _reshape(self, inputs):
-        reshaped = {}
-        for port, input in inputs.items():
-            expected = self._expected_shape()
-
-            if expected is not None:
-                reshaped[port] = ifelse(T.eq(expected, input.shape),
-                                        input,
-                                        input.reshape(expected))
-
-            max_dims = self._reshape_dims()
-            if input.ndim > max_dims:
-                sym_shp = input.shape
-                if max_dims == 2:
-                    shp = (sym_shp[0], -1)
-                if max_dims == 3:
-                    shp = (sym_shp[0], sym_shp[1], -1)
-
-                reshaped[port] = input.reshape(shp, ndim=max_dims)
-            if port not in reshaped:
-                reshaped[port] = input
-        return reshaped
-
-    def output(self, inputs: '{str: symbolic tensor}'):
-        """
-        :param input: dict of {"<input_port>": symbolic tensor variable}
-        """
-        for l in self.input_ports():
-            if l not in inputs:
-                raise KeyError("Expected a symbolic tensor variable for input"
-                               " port `{!s}`.".format(l))
-
-        reshaped_inputs = self._reshape(inputs)
-
-        return self._output(reshaped_inputs)
-
-    def _output(self, inputs: '{str: symbolic tensor}'):
-        raise NotImplementedError()
-
-
-class MultiOutLayer(Layer):
-    def out_ports(self):
-        raise NotImplementedError()
-
-    def output(self, inputs: '{str: symbolic tensor}'):
-        """
-        :param input: dict of {"<input_port>": symbolic tensor variable}
-        """
-        for l in self.input_ports():
-            if l not in inputs:
-                raise KeyError("Expected a symbolic tensor variable for input"
-                               " port `{!s}`.".format(l))
-        reshaped_inputs = self._reshape(inputs)
-        outs = self._output(reshaped_inputs)
-        assert self.out_ports() in outs
-        return outs
-
-    def _output(self, inputs):
-        raise NotImplementedError()
-
-
 class ParameterLayer(Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -495,21 +419,6 @@ class DummyDataLayer(DataSourceLayer):
         return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
 
 
-# --------------------------- Util Layers -------------------------------------
-
-
-class ConcatLayer(MultiInLayer):
-    in_ports = REPEAT(str)
-    axis = REQUIRED(int)
-
-    def input_ports(self):
-        return tuple(self.in_ports)
-
-    def _output(self, inputs):
-        tensors = [inputs[p] for p in self.in_ports]
-        return T.concatenate(tensors, axis=self.axis)
-
-
 # ------------------------- Normalization Layers ------------------------------
 
 
@@ -665,7 +574,6 @@ ANY_LAYER = TAGS({
     "ReLU": ReLULayer,
     "DummyData": DummyDataLayer,
     "Pooling": PoolingLayer,
-    "Concat": ConcatLayer,
     "LRN": LRNLayer
 })
 

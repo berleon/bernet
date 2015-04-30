@@ -285,20 +285,6 @@ class TestInnerProductLayer(TestCase):
             np_output)
 
 
-class TestConcatLayer(TestCase):
-    def test_concat_layer(self):
-        concat = ConcatLayer(name="join", in_ports=["foo", "bar"], axis=2)
-        in_shape = (1, 3, 20, 20)
-
-        rand_foo = np.random.sample(in_shape)
-        rand_bar = np.random.sample(in_shape)
-        outs = concat.output({"foo": theano.shared(rand_foo),
-                             "bar": theano.shared(rand_bar)})
-
-        assert_array_equal(outs.eval(),
-                           np.concatenate([rand_foo, rand_bar], axis=2))
-
-
 class TestLRNLayer(TestCase):
     def test_lrn_layer(self):
         n = 5
