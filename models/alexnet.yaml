@@ -1,0 +1,162 @@
+name: AlexNet
+description: >
+  AlexNet from the Paper: Krizhevsky, A., Sutskever, I., and Hinton, G. (2012).
+  ImageNet classification with deep convolutional neural networks.
+  In NIPS\u2019\2012.
+data_url: file:///home/leon/uni/bachelor/theano/bernet/models/alexnet.npz
+data_sha256: df66d91fc1b76cd1edf93a01df5034f076fa4d1d6b3f002c2a4abc1b20dcbfa5
+batch_size: &bs 10
+input_shape: [*bs, 3, 227, 227]
+layers:
+- !Conv
+  name: conv1
+  input_shape: [*bs, 3, 227, 227]
+  kernel_h: 11
+  kernel_w: 11
+  num_feature_maps: 96
+  stride_h: 4
+  stride_v: 4
+  weight:
+    name: conv1_weight
+  bias:
+    name: conv1_bias
+- !ReLU
+  name: relu1
+  source: conv1
+
+#- !LRN
+#  name: norm1
+#  source: relu1
+#  alpha: 0.0001
+#  beta: 0.75
+#  n: 5
+
+- !Pooling
+  name: pool1
+  source: relu1
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !Conv
+  name: conv2
+  source: pool1
+  input_shape: [*bs, 96, 27, 27]
+  group: 2
+  kernel_h: 5
+  kernel_w: 5
+  border_mode: same
+  num_feature_maps: 256
+  weight:
+    name: conv2_weight
+  bias:
+    name: conv2_bias
+
+- !ReLU
+  name: relu2
+  source: conv2
+
+#- !LRN
+#  name: norm2
+#  source: relu2
+#  alpha: 0.0001
+#  beta: 0.75
+#  n: 5
+
+- !Pooling
+  name: pool2
+  source: relu2
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !Conv
+  name: conv3
+  source: pool2
+  bias:
+    name: conv3_bias
+  input_shape: [*bs, 256, 13, 13]
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 384
+  border_mode: same
+  weight:
+    name: conv3_weight
+
+- !ReLU
+  name: relu3
+  source: conv3
+
+- !Conv
+  name: conv4
+  source: relu3
+  input_shape: [*bs, 384, 13, 13]
+  group: 2
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 384
+  border_mode: same
+  weight:
+    name: conv4_weight
+  bias:
+    name: conv4_bias
+
+- !ReLU
+  name: relu4
+  source: conv4
+
+
+- !Conv
+  name: conv5
+  source: relu4
+  input_shape: [*bs, 384, 13, 13]
+  group: 2
+  kernel_h: 3
+  kernel_w: 3
+  num_feature_maps: 256
+  border_mode: same
+  weight:
+    name: conv5_weight
+  bias:
+    name: conv5_bias
+
+- !ReLU
+  name: relu5
+  source: conv5
+
+- !Pooling
+  name: pool5
+  source: relu5
+  poolsize: [3, 3]
+  stride: [2, 2]
+
+- !InnerProduct
+  name: fc6
+  source: pool5
+  input_shape: [*bs, 9216]
+  n_units: 4096
+  bias: yes
+
+- !ReLU
+  name: relu6
+  source: fc6
+
+- !InnerProduct
+  name: fc7
+  source: relu6
+  input_shape: [*bs, 4096]
+  n_units: 4096
+  bias: yes
+
+- !ReLU
+  name: relu7
+  source: fc7
+
+- !InnerProduct
+  name: fc8
+  source: relu7
+  input_shape: [*bs, 4096]
+  n_units: 1000
+  bias: yes
+
+- !Softmax
+  name: prob
+  source: fc8

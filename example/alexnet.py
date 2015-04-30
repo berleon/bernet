@@ -23,7 +23,7 @@ from bernet.config import load
 
 _dir = os.path.dirname(os.path.realpath(__file__))
 
-with open(_dir + "/alexnet.yaml") as f:
+with open(_dir + "/../models/alexnet.yaml") as f:
     net = load(FeedForwardNet, f)
     cat = (imread(_dir + "/cat.jpg") / 255.)
     cat = cat.swapaxes(0, 2).reshape((1, 3, 224, 224))

@@ -129,7 +129,7 @@ class TestFeedForwardNet(TestCase, NetworkBaseTests):
     def test_load_shallow_net(self):
         _dir = os.path.dirname(os.path.realpath(__file__))
 
-        with open(_dir + "/../example/shallow-net.yaml") as f:
+        with open(_dir + "/../models/shallow-net.yaml") as f:
             net = load(FeedForwardNet, f)
             self.assertEqual(net.input_layer.name, 'ip#1')
             self.assertEqual(net.output_layer.name, 'softmax#1')
