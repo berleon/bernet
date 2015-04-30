@@ -444,6 +444,8 @@ class LRNLayer(Layer):
         scale = scaled ** self.beta
         return input / scale
 
+    def output_shape(self, input_shape: tuple):
+        return input_shape
 
 # ------------------------- Activation Layers ---------------------------------
 

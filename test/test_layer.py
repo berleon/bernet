@@ -317,6 +317,11 @@ class TestLRNLayer(TestCase):
         out = lrn.output(test_shared)
         np.testing.assert_almost_equal(out.eval(), ground_truth_lrn(test_np))
 
+    def test_output_shape(self):
+        lrn = LRNLayer(name="lrn")
+        input_shape = (1, 3, 16, 16)
+        self.assertEqual(lrn.output_shape(input_shape), input_shape)
+
 
 class TestCONNECTIONS(ConfigFieldTestCase):
     def test_parse_layer(self):
