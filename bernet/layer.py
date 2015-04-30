@@ -329,6 +329,18 @@ class ConvLayer(ParameterLayer):
         else:
             return concated + self.bias.shared.dimshuffle('x', 0, 'x', 'x')
 
+    def output_shape(self, in_shp: tuple):
+        if self.border_mode == 'same':
+            return (in_shp[0],) + (self.num_feature_maps,) + in_shp[2:]
+        elif self.border_mode == 'full':
+            return (in_shp[0], self.num_feature_maps,
+                    h(in_shp) + h(self.filter_shape()) - 1,
+                    w(in_shp) + w(self.filter_shape()) - 1)
+        elif self.border_mode == 'valid':
+            return (in_shp[0], self.num_feature_maps,
+                    h(in_shp) - h(self.filter_shape()) + 1,
+                    w(in_shp) - w(self.filter_shape()) + 1)
+
     def _fix_same_border_mode(self, conv_out):
         hb = (conv_out.shape[-2] - h(self.input_shape)) // 2
         he = hb + h(self.input_shape)

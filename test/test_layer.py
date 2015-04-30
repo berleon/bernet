@@ -222,8 +222,9 @@ class TestConvolutionLayer(TestCase):
         input_shape = conv.input_shape
         conv.fill_parameters()
         x = theano.shared(self.gauss.fill(input_shape))
-        conv_out = conv.output(x)
-        self.assertTupleEqual(conv_out.eval().shape, (1, 1, 12, 12))
+        conv_out = conv.output(x).eval()
+        self.assertTupleEqual(conv_out.shape, (1, 1, 12, 12))
+        self.assertTupleEqual(conv.output_shape(input_shape), (1, 1, 12, 12))
 
 
 def create_layer(layer_class, **kwargs):
