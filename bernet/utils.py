@@ -228,6 +228,14 @@ def from_image_magic(x):
     return x.swapaxes(n, n+2).swapaxes(n+1, n+2)
 
 
+def save_images(image_np_arrays, image_paths):
+    assert image_np_arrays.shape[0], len(image_paths)
+    image_np_arrays = to_image_magic(image_np_arrays)
+    for i in range(image_np_arrays.shape[0]):
+        img = Image.fromarray(image_np_arrays[i])
+        img.save(image_paths[i])
+
+
 def load_images(image_paths, size):
     shape = (len(image_paths), 3, size[0], size[1])
     arr = np.empty(shape, dtype=theano.config.floatX)
