@@ -440,7 +440,7 @@ class LRNLayer(Layer):
         conved = conv2d(input=sq, filters=filter, border_mode='full')
         conved = conved.reshape((input.shape[0], -1, input.shape[2],
                                  input.shape[3]))
-        scaled = self.k + self.alpha * conved[:, start:end, :, :]
+        scaled = self.k + (self.alpha / self.n) * conved[:, start:end, :, :]
         scale = scaled ** self.beta
         return input / scale
 

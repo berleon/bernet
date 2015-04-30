@@ -295,7 +295,7 @@ class TestLRNLayer(TestCase):
         beta = 0.75
         k = 3.
 
-        def naive_lrn(np_arr):
+        def ground_truth_lrn(np_arr):
             # The Theano implementation of LRN requires some rather complex
             # reshaping and convolution. Here the LRN formular is written with
             # simple numpy code.
@@ -308,14 +308,14 @@ class TestLRNLayer(TestCase):
                 stop = min(ch+half+1, nb_chans)
                 for i in range(start, stop):
                     scale[:, ch, :, :] += sqr[:, i, :, :]
-            scale = k + alpha*scale
+            scale = k + (alpha/n)*scale
             return np_arr / scale**beta
 
         test_np = np.random.uniform(size=(1, 16, 32, 32))
         test_shared = theano.shared(test_np, 'test_shared')
         lrn = LRNLayer(name="lrn", n=n, alpha=alpha, k=k)
         out = lrn.output(test_shared)
-        np.testing.assert_almost_equal(out.eval(), naive_lrn(test_np))
+        np.testing.assert_almost_equal(out.eval(), ground_truth_lrn(test_np))
 
 
 class TestCONNECTIONS(ConfigFieldTestCase):
