@@ -123,4 +123,5 @@ class TestUtils(TestCase):
     def test_tile_array(self):
         arr = np.random.sample((12, 128, 128))
         img = tile_image(arr, tile_spacing=(3, 3), name="Hello World!")
+        self.assertEqual(type(img), Image.Image)
         # img.show()

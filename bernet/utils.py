@@ -144,7 +144,11 @@ def tile_image(arr, tile_spacing=(1, 1), name=""):
                 img_arr[s_h, s_w] = arr[channel]
 
     img = Image.fromarray(img_arr).convert('RGB')
-    font = ImageFont.truetype("arial.ttf", 16)
+    try:
+        font = ImageFont.truetype("arial.ttf", 16)
+    except OSError:
+        font = None
+
     d = ImageDraw.Draw(img)
     d.text((5, 5), name, font=font, fill=(0, 255, 0))
     return img
