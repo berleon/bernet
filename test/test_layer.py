@@ -243,8 +243,10 @@ class TestActivationLayers(TestCase):
         for layer_class, func in self.layer_classes:
             layer = create_layer(layer_class)
             dummy_data = np.random.sample(shape)
-            out = layer.output(theano.shared(dummy_data))
-            assert_almost_equal(out.eval(), func(dummy_data))
+            out = layer.output(theano.shared(dummy_data)).eval()
+            assert_almost_equal(out, func(dummy_data))
+            self.assertTupleEqual(out.shape, layer.output_shape(shape))
+            self.assertTupleEqual(layer.output_shape(shape), shape)
 
 
 class TestSoftmaxLayer(TestCase):

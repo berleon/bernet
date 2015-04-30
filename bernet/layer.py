@@ -449,7 +449,8 @@ class LRNLayer(Layer):
 
 
 class ActivationLayer(Layer):
-    pass
+    def output_shape(self, input_shape: tuple):
+        return input_shape
 
 
 class SigmoidLayer(ActivationLayer):
