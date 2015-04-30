@@ -226,6 +226,24 @@ class TestConvolutionLayer(TestCase):
         self.assertTupleEqual(conv_out.shape, (1, 1, 12, 12))
         self.assertTupleEqual(conv.output_shape(input_shape), (1, 1, 12, 12))
 
+    def test_same_border_mode(self):
+        conv = ConvLayer(
+            name="conv#test",
+            num_feature_maps=20,
+            kernel_w=5,
+            kernel_h=5,
+            weight=Parameter(name="conv#test#weight"),
+            bias=Parameter(name="conv#test#bias"),
+            border_mode='same',
+            input_shape=(1, 3, 20, 20))
+
+        input_shape = conv.input_shape
+        conv.fill_parameters()
+        x = theano.shared(self.gauss.fill(input_shape))
+        conv_out = conv.output(x).eval()
+        self.assertTupleEqual(conv_out.shape, (1, 20, 20, 20))
+        self.assertTupleEqual(conv.output_shape(input_shape), (1, 20, 20, 20))
+
 
 def create_layer(layer_class, **kwargs):
         return layer_class(name=layer_class.__name__ + "_test", **kwargs)
