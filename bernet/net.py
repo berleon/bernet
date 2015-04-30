@@ -126,7 +126,7 @@ class Network(ConfigObject):
     def output(self):
         raise NotImplementedError()
 
-    def layer_outputs(self):
+    def layer_outputs(self, input):
         raise NotImplementedError()
 
 
