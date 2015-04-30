@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
+import os
 
 import numpy as np
 import theano
@@ -64,6 +65,8 @@ class Network(ConfigObject):
 
     layers = REPEAT(ANY_LAYER, doc="A list of :class:`.Layer`")
 
+    MODELS_DIR = os.path.expanduser("~/.bernet/")
+
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
         self.data = {}
@@ -71,13 +74,17 @@ class Network(ConfigObject):
             raise ConfigError("Field data_url requires data_sha256 to be set")
 
         if self.data_url is not None:
-            file_name = kwargs['name'] + "_parameters.npz"
+            file_name = os.path.join(self.MODELS_DIR,
+                                     kwargs['name'] + "_parameters.npz")
             data_url = kwargs['data_url']
             data_sha256 = kwargs['data_sha256']
             self.data = self._get_data(file_name, data_url, data_sha256)
 
-    def _get_data(self, file_name, url, sha256_expected):
-        with open(file_name, "w+b") as f:
+    def _get_data(self, file_path, url, sha256_expected):
+        file_dir = os.path.dirname(file_path)
+        if not os.path.exists(file_dir):
+            os.makedirs(file_dir)
+        with open(file_path, "w+b") as f:
             utils.download(url, f)
             sha256_got = utils.sha256_of_file(f)
             if sha256_expected != sha256_got:

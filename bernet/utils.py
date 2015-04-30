@@ -29,7 +29,8 @@ def download(url: str, file) -> bool:
     u = urllib.request.urlopen(url)
     meta = u.info()
     file_size = int(meta["Content-Length"])
-    print("Downloading: %s Bytes: %s" % (url, file_size))
+    print("Downloading url {} to {}. Total bytes: {}"
+          .format(url, file.name, file_size))
 
     file_size_dl = 0
     block_sz = 2**16

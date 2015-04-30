@@ -187,9 +187,5 @@ class TestFeedForwardNet(TestCase, NetworkBaseTests):
                 data_url='file://' + f.name,
                 data_sha256=sha256sum)
             for param_name, data in params_data.items():
-                name_exists = False
-                for p in net.parameters():
-                    if p.name == param_name:
-                        name_exists = True
-                        self.assert_(np.all(p.tensor == data))
-                self.assert_(name_exists)
+                param = net.get_parameter(param_name)
+                self.assert_(np.all(param.tensor == data))
