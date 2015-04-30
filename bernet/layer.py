@@ -183,9 +183,10 @@ class Layer(ConfigObject):
         return self._output(reshaped_input)
 
     def output_shape(self, input_shape: tuple):
-        out = self.output(T.zeros(input_shape))
+        batch_size = bs(input_shape)
+        out = self.output(T.zeros((1,) + input_shape[1:]))
         with fast_compile():
-            return tuple(out.shape.eval())
+            return (batch_size,) + tuple(out.shape.eval())[1:]
 
     def _output(self, input):
         raise NotImplementedError("Please use a subclass of Layer")
