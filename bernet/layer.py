@@ -178,9 +178,6 @@ class Layer(ConfigObject):
             """
         super().__init__(**kwargs)
 
-    def copy(self):
-        raise NotImplementedError
-
     def output(self, input: 'Theano Expression'):
         reshaped_input = self._reshape(input)
         return self._output(reshaped_input)
@@ -248,9 +245,6 @@ class ParameterLayer(Layer):
     def fill_parameters(self):
         for p in self.parameters:
             self.fill_parameter(p)
-
-    def loss(self):
-        return T.as_tensor_variable(0)
 
 
 class ConvLayer(ParameterLayer):
