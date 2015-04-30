@@ -21,7 +21,7 @@ import numpy as np
 import numpy.testing
 from bernet.dataset import MNISTDataset, Dataset, GeneratedDataset, \
     LineDataset, ILSVRCDataset
-from bernet.utils import size
+from bernet.utils import size, save_images
 
 
 class TestDataset(TestCase):
@@ -85,7 +85,24 @@ class TestMNISTDataset(TestCase):
 
 class TestILSVRCDataset(TestCase):
     def test_dataset(self):
-        dataset = ILSVRCDataset(epoch_size=2)
+        _dir = os.path.dirname(__file__)
+        ilsvrc2012_dir = _dir + "/../data/ILSVRC2012"
+        use_random_data = False
+        if not os.path.exists(ilsvrc2012_dir):
+            use_random_data = True
+            ilsvrc2012_dir = tempfile.mkdtemp()
+            os.makedirs(ilsvrc2012_dir + '/validate')
+            n_images = 64
+            images = np.uint8(255*np.random.sample((n_images, 3, 277, 277)))
+            save_images(images,
+                        ['{}/validate/{}.jpeg'.format(ilsvrc2012_dir, i)
+                         for i in range(n_images)])
+            ground_truth = ilsvrc2012_dir + '/validate/ground_truth.txt'
+            with open(ground_truth, mode='w') as gt:
+                gt.write('\n'.join(
+                    [str(int(10*i)) for i in np.random.sample((n_images, ))]))
+
+        dataset = ILSVRCDataset(epoch_size=2, data_dir=ilsvrc2012_dir)
         epoche = next(dataset.validate_epoch())
         first_img_data = np.uint8(epoche.data()[0, :] * 255).\
             swapaxes(0, 2).swapaxes(0, 1)
@@ -93,6 +110,9 @@ class TestILSVRCDataset(TestCase):
         self.assertTupleEqual(epoche.data().shape,
                               (dataset.epoch_size, 3, 227, 227))
         self.assertTupleEqual(epoche.labels().shape, (dataset.epoch_size,))
+
+        if use_random_data:
+            shutil.rmtree(ilsvrc2012_dir)
 
 
 class TestGeneratedDataset(TestCase):
