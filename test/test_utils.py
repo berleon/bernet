@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import hashlib
+import os
+import shutil
 import tempfile
 from unittest import TestCase
 
@@ -79,6 +81,44 @@ class TestUtils(TestCase):
         chunked = chunks(range(11), 4)
         self.assertListEqual(list(map(list, chunked)),
                              [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10]])
+
+    def test_from_to_image_magic(self):
+        self.assertRaises(AssertionError, to_image_magic, np.ones((2, 2)))
+        self.assertRaises(AssertionError, from_image_magic, np.ones((2, 2)))
+
+        channels = 3
+        x = np.random.sample((channels, 4, 4))
+        magic_x = to_image_magic(x)
+        for i in range(channels):
+            np.testing.assert_equal(x[i], magic_x[:, :, i])
+        through_magic = from_image_magic(magic_x)
+        np.testing.assert_equal(x, through_magic)
+
+        x = np.random.sample((4, channels, 4, 4))
+        magic_x = to_image_magic(x)
+        for i in range(channels):
+            np.testing.assert_equal(x[:, i], magic_x[..., i])
+        through_magic = from_image_magic(magic_x)
+        np.testing.assert_equal(x, through_magic)
+
+    def test_load_images(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            n_images = 3
+            images = np.random.sample((n_images, 3, 32, 16))
+            image_paths = []
+            for i in range(n_images):
+                arr = np.uint8(255*to_image_magic(images[i]))
+                img = Image.fromarray(arr)
+                img_path = "{}/{}.png".format(temp_dir, i)
+                img.save(img_path)
+                image_paths.append(img_path)
+
+            loaded_images = load_images(image_paths, (16, 16))
+            np.testing.assert_almost_equal(loaded_images,
+                                           images[:, :, 8:24, :], decimal=2)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_tile_array(self):
         arr = np.random.sample((12, 128, 128))

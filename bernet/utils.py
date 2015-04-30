@@ -20,7 +20,7 @@ from math import sqrt, ceil
 
 import numpy as np
 import theano
-from theano.compile import FAST_COMPILE
+
 import theano.tensor as T
 
 
@@ -209,3 +209,43 @@ def chunks(list, n):
     """ Yield successive n-sized chunks from list l. """
     for i in range(0, len(list), n):
         yield list[i:i+n]
+
+
+def to_image_magic(x):
+    """Reshapes x with shape (..., channels, height, weight) to Image Magic
+    shape (..., height, weight, channel)."""
+    assert x.ndim >= 3
+    n = x.ndim - 3
+    return x.swapaxes(n+1, n+2).swapaxes(n, n+2)
+
+
+def from_image_magic(x):
+    """Reshapes x with a Image Magic shape of (..., height, weight, channel) to
+    a shape of (..., channel, height, weight)."""
+    assert x.ndim >= 3
+    n = x.ndim - 3
+    return x.swapaxes(n, n+2).swapaxes(n+1, n+2)
+
+
+def load_images(image_paths, size):
+    shape = (len(image_paths), 3, size[0], size[1])
+    arr = np.empty(shape, dtype=theano.config.floatX)
+    for i, img_path in enumerate(image_paths):
+        img = Image.open(img_path)
+        if img.size != size:
+            width, height = img.size
+            left, right, upper, lower = 0, width, 0, height
+            if width > height:
+                diff = (width - height)
+                left = diff // 2
+                right = diff // 2 + height
+            else:
+                diff = (height - width)
+                upper = diff // 2
+                lower = diff // 2 + width
+
+            croped = img.crop((left, upper, right, lower))
+            img = croped.resize(size, Image.NEAREST)
+        normalized = np.array(img, dtype=theano.config.floatX) / 255
+        arr[i, :] = normalized.swapaxes(0, 2).swapaxes(1, 2)
+    return arr
