@@ -15,10 +15,12 @@ import os
 import shutil
 import tempfile
 from unittest import TestCase
+from PIL import Image
 
 import numpy as np
 import numpy.testing
-from bernet.dataset import MNISTDataset, Dataset, GeneratedDataset, LineDataset
+from bernet.dataset import MNISTDataset, Dataset, GeneratedDataset, \
+    LineDataset, ILSVRCDataset
 from bernet.utils import size
 
 
@@ -79,6 +81,18 @@ class TestMNISTDataset(TestCase):
         train_batch = next(dataset.train_epoch())
         self.assertEqual(size(train_batch.data().shape[1:2]),
                          size((28, 28)))
+
+
+class TestILSVRCDataset(TestCase):
+    def test_dataset(self):
+        dataset = ILSVRCDataset(epoch_size=2)
+        epoche = next(dataset.validate_epoch())
+        first_img_data = np.uint8(epoche.data()[0, :] * 255).\
+            swapaxes(0, 2).swapaxes(0, 1)
+        first_img = Image.fromarray(first_img_data)
+        self.assertTupleEqual(epoche.data().shape,
+                              (dataset.epoch_size, 3, 227, 227))
+        self.assertTupleEqual(epoche.labels().shape, (dataset.epoch_size,))
 
 
 class TestGeneratedDataset(TestCase):

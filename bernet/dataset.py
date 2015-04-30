@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import gzip
 import os
 import pickle
+from multiprocessing import Pipe, Process
 
 import numpy as np
-import bernet.utils
+from bernet.utils import chunks, load_images, download
 
 
 class Epoche(object):
@@ -81,7 +83,7 @@ class MNISTDataset(Dataset):
     def _download_mnist(self):
         os.makedirs(os.path.dirname(self._local_file), exist_ok=True)
         with open(self._local_file, "wb+") as f:
-            bernet.utils.download(self._url, f)
+            download(self._url, f)
 
     def labels_dims(self):
         return 1
@@ -97,6 +99,63 @@ class MNISTDataset(Dataset):
 
     def test_epoch(self) -> Epoche:
         yield Epoche(self._test_set[0], self._test_set[1])
+
+
+def _ilsvrc_preprocessing(conn, data_dir, task, epoch_size):
+    conn.recv()
+    dir = os.path.join(data_dir, task)
+    files = sorted(os.listdir(dir))
+    all_labels = np.uint32(np.genfromtxt(dir + '/ground_truth.txt'))
+    chunks_files = chunks(files, epoch_size)
+    chunks_labels = chunks(all_labels, epoch_size)
+    for i, (img_names, labels) in enumerate(zip(chunks_files, chunks_labels)):
+        img_paths = list(map(lambda n: os.path.join(dir, n), img_names))
+        data = load_images(img_paths, (227, 227))
+        conn.send((data, labels))
+
+
+class ILSVRCEpochGenerator():
+    def __init__(self, data_dir, epoch_size, task):
+        self.parent_conn, preprocessing_conn = Pipe()
+        p = Process(target=_ilsvrc_preprocessing, daemon=True,
+                    args=(preprocessing_conn, data_dir, task, epoch_size))
+        p.start()
+        self.parent_conn.send(True)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self.parent_conn.send(True)
+        data, labels = self.parent_conn.recv()
+        return Epoche(data, labels)
+
+
+class ILSVRCDataset(Dataset):
+    def __init__(self, data_dir=None, epoch_size=128):
+        if data_dir is None:
+            data_dir = os.path.join(os.path.dirname(__file__),
+                                    "../data/ILSVRC2011/")
+        self.data_dir = data_dir
+        self.epoch_size = epoch_size
+
+    def labels_dims(self) -> int:
+        return 1
+
+    def train_epoch(self) -> Epoche:
+        return self._generate_epoch('train')
+
+    def test_epoch(self) -> Epoche:
+        return self._generate_epoch('test')
+
+    def validate_epoch(self) -> Epoche:
+        return self._generate_epoch('validate')
+
+    def data_dims(self) -> int:
+        pass
+
+    def _generate_epoch(self, task):
+        return ILSVRCEpochGenerator(self.data_dir, self.epoch_size, task)
 
 
 class GeneratedDataset(Dataset):
