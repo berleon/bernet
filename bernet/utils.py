@@ -15,6 +15,8 @@ import hashlib
 import operator
 import urllib.request
 from functools import reduce
+from PIL import Image, ImageDraw, ImageFont
+from math import sqrt, ceil
 
 import numpy as np
 import theano
@@ -111,6 +113,40 @@ def symbolic_tensor_from_shape(name, shp):
 def shared_like(shared_tensor, name, init=0):
     return theano.shared(np.zeros_like(shared_tensor.get_value()) + init,
                          name="{}_{}".format(shared_tensor.name, name))
+
+
+def tile_image(arr, tile_spacing=(1, 1), name=""):
+    def rectify(n):
+        n_w = ceil(sqrt(n))
+        n_h = ceil(n / n_w)
+        return (n_h, n_w)
+
+    if arr.ndim > 3:
+        arr = arr.reshape(-1, arr.shape[1], arr.shape[2])
+
+    assert arr.ndim == 3
+    n = arr.shape[0]
+    arr_h = arr.shape[1]
+    arr_w = arr.shape[2]
+    n_h, n_w = rectify(n)
+    t_h, t_w = tile_spacing
+    img_shape = (n_h*arr_h + (n_h-1)*t_h,
+                 n_w*arr_w + (n_w-1)*t_w,)
+    img_arr = np.ones(img_shape) * 0.5
+    print(img_shape)
+    for i in range(n_w):
+        for j in range(n_h):
+            s_w = slice(i*(arr_w+t_w), (i+1)*(arr_w+t_w) - t_w)
+            s_h = slice(j*(arr_h+t_h), (j+1)*(arr_h+t_h) - t_h)
+            channel = i*n_h + j
+            if channel < n:
+                img_arr[s_h, s_w] = arr[channel]
+
+    img = Image.fromarray(img_arr).convert('RGB')
+    font = ImageFont.truetype("arial.ttf", 16)
+    d = ImageDraw.Draw(img)
+    d.text((5, 5), name, font=font, fill=(0, 255, 0))
+    return img
 
 
 def confusion_matrix(pred_labels, true_labels):

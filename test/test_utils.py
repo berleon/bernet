@@ -79,3 +79,8 @@ class TestUtils(TestCase):
         chunked = chunks(range(11), 4)
         self.assertListEqual(list(map(list, chunked)),
                              [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10]])
+
+    def test_tile_array(self):
+        arr = np.random.sample((12, 128, 128))
+        img = tile_image(arr, tile_spacing=(3, 3), name="Hello World!")
+        # img.show()
