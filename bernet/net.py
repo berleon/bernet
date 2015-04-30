@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections import OrderedDict
 
 import numpy as np
 import theano
@@ -238,7 +239,7 @@ class FeedForwardNet(Network):
 
     def layer_outputs(self, input):
         next_input = input
-        outputs = {}
+        outputs = OrderedDict()
         for layer in self.layer_iter():
             output = layer.output(next_input)
             outputs[layer.name] = output
