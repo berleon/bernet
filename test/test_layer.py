@@ -160,6 +160,8 @@ class TestConvolutionLayer(TestCase):
             (3,    7,  5,   4,  8, "full"),
             (2,    5,  5,   1,  1, "full"),
             (2,    5,  3,   3,  2, "full"),
+            (2,    5,  5,   1,  1, "same"),
+            (5,    8,  4,   1,  1, "same"),
         ]
         self.conv_layers = []
         for p in conv_nets_properties:
@@ -243,6 +245,28 @@ class TestConvolutionLayer(TestCase):
         conv_out = conv.output(x).eval()
         self.assertTupleEqual(conv_out.shape, (1, 20, 20, 20))
         self.assertTupleEqual(conv.output_shape(input_shape), (1, 20, 20, 20))
+
+    def test_output_shape_auto(self):
+        input_shapes = [(3, 1, 16, 16),
+                        (1, 3, 32, 32),
+                        (1, 2, 128, 128),
+                        (1, 1, 21, 21)]
+        for input_shape in input_shapes:
+            for conv in self.conv_layers:
+                conv.input_shape = input_shape
+                conv.fill_parameters()
+                filter_shape = conv.filter_shape()
+                self.assertEqual(bs(filter_shape), conv.num_feature_maps)
+                self.assertEqual(chans(filter_shape), chans(input_shape))
+                x = theano.shared(GaussianFiller().fill(input_shape))
+                conv_out = conv.output(x).eval()
+                expected_output_shape = conv.output_shape(input_shape)
+
+                self.assertEqual(conv_out.shape,
+                                 expected_output_shape,
+                                 "input_shape was: {!s},\n"
+                                 "ConvolutionLayer.name: {!r}"
+                                 .format(input_shape, conv.name))
 
 
 def create_layer(layer_class, **kwargs):

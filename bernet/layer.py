@@ -307,6 +307,7 @@ class ConvLayer(ParameterLayer):
         input_shape = self.input_shape[:1] + (in_chan, ) + self.input_shape[2:]
         conv_outs = []
         if self.border_mode == 'same':
+            assert self.stride_h == 1 and self.stride_v == 1
             border_mode = 'full'
         else:
             border_mode = self.border_mode
@@ -332,14 +333,25 @@ class ConvLayer(ParameterLayer):
     def output_shape(self, in_shp: tuple):
         if self.border_mode == 'same':
             return (in_shp[0],) + (self.num_feature_maps,) + in_shp[2:]
-        elif self.border_mode == 'full':
-            return (in_shp[0], self.num_feature_maps,
-                    h(in_shp) + h(self.filter_shape()) - 1,
-                    w(in_shp) + w(self.filter_shape()) - 1)
-        elif self.border_mode == 'valid':
-            return (in_shp[0], self.num_feature_maps,
-                    h(in_shp) - h(self.filter_shape()) + 1,
-                    w(in_shp) - w(self.filter_shape()) + 1)
+
+        batch_size = bs(in_shp)
+        channels = self.num_feature_maps  # * chans(input_shape)
+        miss_h = self.kernel_h - 1
+        miss_w = self.kernel_w - 1
+        # maximum possible step, if stride_X = 1.
+        if self.border_mode == "valid":
+            max_steps_h = h(in_shp) - miss_h
+            max_steps_w = w(in_shp) - miss_w
+        elif self.border_mode == "full":
+            max_steps_h = h(in_shp) + miss_h
+            max_steps_w = w(in_shp) + miss_w
+        height = max_steps_h // self.stride_h
+        width = max_steps_w // self.stride_v
+        if max_steps_h % self.stride_h != 0:
+            height += 1
+        if max_steps_w % self.stride_v != 0:
+            width += 1
+        return batch_size, channels, height, width
 
     def _fix_same_border_mode(self, conv_out):
         hb = (conv_out.shape[-2] - h(self.input_shape)) // 2
