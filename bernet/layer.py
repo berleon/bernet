@@ -515,7 +515,7 @@ class CropLayer(Layer):
         return input_shape[:2] + (self.height, self.width)
 
 
-class MeanLayer(Layer):
+class SubtractMeanLayer(Layer):
     mean = OPTIONAL(float)
     mean_file = OPTIONAL(str)
 

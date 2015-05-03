@@ -128,15 +128,15 @@ class TestCropLayer(TestCase):
                               expected_shape)
 
 
-class TestMeanLayer(TestCase):
+class TestSubstractMeanLayer(TestCase):
     def test_exceptions(self):
-        self.assertRaises(ConfigError, MeanLayer,
+        self.assertRaises(ConfigError, SubtractMeanLayer,
                           name='mean', mean=3., mean_file='foo.npz')
-        self.assertRaises(ConfigError, MeanLayer, name='mean')
+        self.assertRaises(ConfigError, SubtractMeanLayer, name='mean')
 
     def test_mean(self):
         mean = 1.
-        mean_layer = MeanLayer(name='mean', mean=mean)
+        mean_layer = SubtractMeanLayer(name='mean', mean=mean)
         input_shape = (3, 4)
         input = np.zeros(input_shape)
         out = mean_layer.output(theano.shared(input)).eval()
@@ -149,7 +149,7 @@ class TestMeanLayer(TestCase):
         f = NamedTemporaryFile()
         np.save(f, mean)
         f.flush()
-        mean_layer = MeanLayer(name='mean', mean_file=f.name)
+        mean_layer = SubtractMeanLayer(name='mean', mean_file=f.name)
         out = mean_layer.output(theano.shared(input)).eval()
         np.testing.assert_equal(out, -mean)
 
