@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from tempfile import NamedTemporaryFile
 
 from unittest import TestCase
 from numpy.testing import assert_array_equal, assert_almost_equal
@@ -125,6 +126,32 @@ class TestCropLayer(TestCase):
 
         self.assertTupleEqual(crop.output_shape(input_shape),
                               expected_shape)
+
+
+class TestMeanLayer(TestCase):
+    def test_exceptions(self):
+        self.assertRaises(ConfigError, MeanLayer,
+                          name='mean', mean=3., mean_file='foo.npz')
+        self.assertRaises(ConfigError, MeanLayer, name='mean')
+
+    def test_mean(self):
+        mean = 1.
+        mean_layer = MeanLayer(name='mean', mean=mean)
+        input_shape = (3, 4)
+        input = np.zeros(input_shape)
+        out = mean_layer.output(theano.shared(input)).eval()
+        np.testing.assert_equal(out, -np.ones(input_shape))
+
+    def test_mean_file(self):
+        input_shape = (3, 4)
+        input = np.zeros(input_shape)
+        mean = np.random.sample(input_shape)
+        f = NamedTemporaryFile()
+        np.save(f, mean)
+        f.flush()
+        mean_layer = MeanLayer(name='mean', mean_file=f.name)
+        out = mean_layer.output(theano.shared(input)).eval()
+        np.testing.assert_equal(out, -mean)
 
 
 class TestShape(ConfigFieldTestCase):

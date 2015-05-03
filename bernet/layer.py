@@ -23,7 +23,7 @@ import theano.tensor.signal.downsample
 from yaml import ScalarNode, SequenceNode, MappingNode
 
 from bernet.config import REQUIRED, OPTIONAL, TAGS, REPEAT, ConfigObject, \
-    ConfigField, ENUM, config_error, EITHER
+    ConfigField, ENUM, config_error, EITHER, ConfigError
 
 from bernet.utils import chans, bs, w, h, fast_compile, prod
 
@@ -534,6 +534,27 @@ class CropLayer(Layer):
         assert input_shape == self.input_shape
         return input_shape[:2] + (self.height, self.width)
 
+
+class MeanLayer(Layer):
+    mean = OPTIONAL(float)
+    mean_file = OPTIONAL(str)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.mean is None and self.mean_file is None:
+            raise config_error("Either mean or mean_file must be given.")
+        if self.mean_file and self.mean:
+            raise config_error("Both mean or mean_file are given.")
+
+        if self.mean_file:
+            print(self.mean_file)
+            self.mean_from_file = np.load(self.mean_file)
+
+    def output(self, input: 'Theano Expression'):
+        if self.mean:
+            return input - self.mean
+        else:
+            return input - self.mean_from_file
 
 # ----------------------------- Connection ------------------------------------
 
