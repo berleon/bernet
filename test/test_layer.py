@@ -94,6 +94,19 @@ class TestFiller(TestCase):
         self.assertLess(arr.max(), 1.)
 
 
+class TestRGB2BGRLayer(TestCase):
+    def test_layer(self):
+        input_shape = (1, 3, 5, 4)
+        input = np.random.sample(input_shape)
+        rgb2bgr = RGB2BGRLayer(name='rgb2bgr')
+        out = rgb2bgr.output(theano.shared(input)).eval()
+
+        np.testing.assert_equal(out[:, 0], input[:, 2])
+        np.testing.assert_equal(out[:, 1], input[:, 1])
+        np.testing.assert_equal(out[:, 2], input[:, 0])
+        self.assertEqual(rgb2bgr.output_shape(input_shape), input_shape)
+
+
 class TestShape(ConfigFieldTestCase):
     def test_construct(self):
         s = Shape()

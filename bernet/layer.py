@@ -502,6 +502,20 @@ class SoftmaxLayer(ActivationLayer):
     def _output(self, input):
         return T.nnet.softmax(input)
 
+# --------------------------- Utility Layer -----------------------------------
+
+
+class RGB2BGRLayer(Layer):
+    def _output(self, input):
+        r, g, b = (input[:, i, :, :] for i in range(3))
+        bgr = [c.dimshuffle(0, 'x', 1, 2) for c in [b, g, r]]
+        return T.concatenate(bgr, axis=1)
+
+    def output_shape(self, input_shape: tuple):
+        assert input_shape[1] == 3
+        assert len(input_shape) == 4
+        return input_shape
+
 
 # ----------------------------- Connection ------------------------------------
 
