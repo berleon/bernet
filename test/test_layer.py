@@ -17,6 +17,7 @@ from unittest import TestCase
 from numpy.testing import assert_array_equal, assert_almost_equal
 
 import theano
+from theano import shared
 import yaml
 from yaml.constructor import ConstructorError
 
@@ -152,6 +153,17 @@ class TestSubstractMeanLayer(TestCase):
         mean_layer = SubtractMeanLayer(name='mean', mean_file=f.name)
         out = mean_layer.output(theano.shared(input)).eval()
         np.testing.assert_equal(out, -mean)
+
+
+class TestArgMaxLayer(TestCase):
+    def test_arg_max(self):
+        in_shape = (10, 100)
+        x = np.random.sample(in_shape)
+        argmax = ArgMaxLayer(name='argmax')
+        out = argmax.output(shared(x)).eval()
+        np.testing.assert_equal(out, np.argmax(x, axis=1))
+        print(argmax.output_shape(in_shape))
+        self.assertTupleEqual(argmax.output_shape(in_shape), in_shape[:1])
 
 
 class TestShape(ConfigFieldTestCase):

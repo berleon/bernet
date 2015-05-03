@@ -199,7 +199,7 @@ class Layer(ConfigObject):
         return self._output(reshaped_input)
 
     def output_shape(self, input_shape: tuple):
-        batch_size = bs(input_shape)
+        batch_size = input_shape[0]
         out = self.output(T.zeros((1,) + input_shape[1:]))
         with fast_compile():
             return (batch_size,) + tuple(out.shape.eval())[1:]
@@ -567,6 +567,17 @@ class SubtractMeanLayer(Layer):
             return input - self.mean_from_file
 
 register_layer("SubtractMean", SubtractMeanLayer)
+
+
+class ArgMaxLayer(Layer):
+    def _reshape_dims(self):
+        return 2
+
+    def _output(self, input):
+        return T.argmax(input, axis=1)
+
+register_layer("ArgMax", ArgMaxLayer)
+
 
 # ----------------------------- Connection ------------------------------------
 
