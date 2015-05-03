@@ -419,26 +419,6 @@ class PoolingLayer(Layer):
         )
 
 
-# ---------------------------- Source Layers ----------------------------------
-
-
-class DataSourceLayer(Layer):
-    shape = REQUIRED(Shape())
-
-    def _output_shapes(self):
-        return {"out": self.shape}
-
-    def input_ports(self):
-        return ()
-
-
-class DummyDataLayer(DataSourceLayer):
-    filler = OPTIONAL(Filler, default=GaussianFiller())
-
-    def _output(self, input):
-        return T.as_tensor_variable(self.filler.fill(self.shape), self.name)
-
-
 # ------------------------- Normalization Layers ------------------------------
 
 
@@ -647,7 +627,6 @@ ANY_LAYER = TAGS({
     "Softmax": SoftmaxLayer,
     "Sigmoid": SigmoidLayer,
     "ReLU": ReLULayer,
-    "DummyData": DummyDataLayer,
     "Pooling": PoolingLayer,
     "LRN": LRNLayer
 })
