@@ -63,7 +63,7 @@ class Network(ConfigObject):
 
     batch_size = OPTIONAL(int, doc="Size of a minibatch", default=32)
 
-    layers = REPEAT(ANY_LAYER, doc="A list of :class:`.Layer`")
+    layers = REPEAT(ANY_LAYER(), doc="A list of :class:`.Layer`")
 
     MODELS_DIR = os.path.expanduser("~/.bernet/")
 

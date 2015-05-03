@@ -23,7 +23,7 @@ import theano.tensor.signal.downsample
 from yaml import ScalarNode, SequenceNode, MappingNode
 
 from bernet.config import REQUIRED, OPTIONAL, TAGS, REPEAT, ConfigObject, \
-    ConfigField, ENUM, config_error, EITHER, ConfigError
+    ConfigField, ENUM, config_error, EITHER
 
 from bernet.utils import chans, bs, w, h, fast_compile, prod
 
@@ -161,6 +161,21 @@ def layer_type(cls):
      For Example layer_type("ConvLayer") will return "Conv"
      """
     return cls.__name__.rstrip("Layer")
+
+REGISTERED_LAYERS = {}
+
+
+def ANY_LAYER():
+    return TAGS(REGISTERED_LAYERS)
+
+
+def register_layer(tag, layer_cls):
+    if tag in REGISTERED_LAYERS:
+        raise config_error(
+            "Cannot add {} under tag {}. There is already {} registered."
+            .format(layer_cls.__name__, tag,
+                    REGISTERED_LAYERS[tag].__name__))
+    REGISTERED_LAYERS[tag] = layer_cls
 
 
 class Layer(ConfigObject):
@@ -363,6 +378,8 @@ class ConvLayer(ParameterLayer):
 
         return conv_out[:, :, hb:he, wb:we]
 
+register_layer("Conv", ConvLayer)
+
 
 class InnerProductLayer(ParameterLayer):
     n_units = REQUIRED(int)
@@ -404,6 +421,8 @@ class InnerProductLayer(ParameterLayer):
     def output_shape(self, input_shape: tuple):
         return input_shape[0], self.n_units
 
+register_layer("InnerProduct", InnerProductLayer)
+
 
 class PoolingLayer(Layer):
     poolsize = REQUIRED(Shape(max_dims=2))
@@ -418,6 +437,7 @@ class PoolingLayer(Layer):
             ignore_border=self.ignore_border
         )
 
+register_layer("Pooling", PoolingLayer)
 
 # ------------------------- Normalization Layers ------------------------------
 
@@ -453,6 +473,8 @@ class LRNLayer(Layer):
     def output_shape(self, input_shape: tuple):
         return input_shape
 
+register_layer("LRN", LRNLayer)
+
 # ------------------------- Activation Layers ---------------------------------
 
 
@@ -465,15 +487,21 @@ class SigmoidLayer(ActivationLayer):
     def _output(self, input):
         return T.nnet.sigmoid(input)
 
+register_layer("Sigmoid", SigmoidLayer)
+
 
 class ReLULayer(ActivationLayer):
     def _output(self, input):
         return T.clip(input, 0, np.infty)
 
+register_layer("ReLU", ReLULayer)
+
 
 class TanHLayer(ActivationLayer):
     def _output(self, input):
         return T.tanh(input)
+
+register_layer("TanH", TanHLayer)
 
 
 class SoftmaxLayer(ActivationLayer):
@@ -482,6 +510,8 @@ class SoftmaxLayer(ActivationLayer):
 
     def _output(self, input):
         return T.nnet.softmax(input)
+
+register_layer("Softmax", SoftmaxLayer)
 
 # --------------------------- Utility Layer -----------------------------------
 
@@ -535,6 +565,8 @@ class SubtractMeanLayer(Layer):
             return input - self.mean
         else:
             return input - self.mean_from_file
+
+register_layer("SubtractMean", SubtractMeanLayer)
 
 # ----------------------------- Connection ------------------------------------
 
@@ -619,17 +651,6 @@ to_name=relu#1, to_port=None)
 
     def type_signature(self):
         return "list of :class:`.Connection`"
-
-ANY_LAYER = TAGS({
-    "Conv": ConvLayer,
-    "InnerProduct": InnerProductLayer,
-    "TanH": TanHLayer,
-    "Softmax": SoftmaxLayer,
-    "Sigmoid": SigmoidLayer,
-    "ReLU": ReLULayer,
-    "Pooling": PoolingLayer,
-    "LRN": LRNLayer
-})
 
 
 def format_ports(ports):
