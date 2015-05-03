@@ -107,6 +107,26 @@ class TestRGB2BGRLayer(TestCase):
         self.assertEqual(rgb2bgr.output_shape(input_shape), input_shape)
 
 
+class TestCropLayer(TestCase):
+    def test_init(self):
+        self.assertRaises(ConfigError, CropLayer)
+        self.assertRaises(ConfigError, CropLayer, name="crop", width=10,
+                          height=10)
+
+    def test_output(self):
+        input_shape = (1, 3, 120, 120)
+        width = 110
+        height = 100
+        crop = CropLayer(name="crop", width=width, height=height,
+                         input_shape=input_shape)
+        out = crop.output(theano.shared(np.zeros(input_shape))).eval()
+        expected_shape = input_shape[:2] + (height, width)
+        self.assertTupleEqual(out.shape, expected_shape)
+
+        self.assertTupleEqual(crop.output_shape(input_shape),
+                              expected_shape)
+
+
 class TestShape(ConfigFieldTestCase):
     def test_construct(self):
         s = Shape()

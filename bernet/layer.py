@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 
 import numpy as np
 import re
@@ -515,6 +516,23 @@ class RGB2BGRLayer(Layer):
         assert input_shape[1] == 3
         assert len(input_shape) == 4
         return input_shape
+
+
+class CropLayer(Layer):
+    width = REQUIRED(int)
+    height = REQUIRED(int)
+    input_shape = REQUIRED(Shape())
+
+    def _output(self, input):
+        max_crop_w = w(self.input_shape) - self.width
+        max_crop_h = h(self.input_shape) - self.height
+        crop_w = random.randint(0, max_crop_w)
+        crop_h = random.randint(0, max_crop_h)
+        return input[:, :, crop_h:self.height+crop_h, crop_w:self.width+crop_w]
+
+    def output_shape(self, input_shape: tuple):
+        assert input_shape == self.input_shape
+        return input_shape[:2] + (self.height, self.width)
 
 
 # ----------------------------- Connection ------------------------------------
