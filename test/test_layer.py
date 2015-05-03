@@ -101,7 +101,7 @@ class TestRGB2BGRLayer(TestCase):
         input_shape = (1, 3, 5, 4)
         input = np.random.sample(input_shape)
         rgb2bgr = RGB2BGRLayer(name='rgb2bgr')
-        out = rgb2bgr.output(theano.shared(input)).eval()
+        out = rgb2bgr.output(shared(input)).eval()
 
         np.testing.assert_equal(out[:, 0], input[:, 2])
         np.testing.assert_equal(out[:, 1], input[:, 1])
@@ -121,7 +121,7 @@ class TestCropLayer(TestCase):
         height = 100
         crop = CropLayer(name="crop", width=width, height=height,
                          input_shape=input_shape)
-        out = crop.output(theano.shared(np.zeros(input_shape))).eval()
+        out = crop.output(shared(np.zeros(input_shape))).eval()
         expected_shape = input_shape[:2] + (height, width)
         self.assertTupleEqual(out.shape, expected_shape)
 
@@ -140,7 +140,7 @@ class TestSubstractMeanLayer(TestCase):
         mean_layer = SubtractMeanLayer(name='mean', mean=mean)
         input_shape = (3, 4)
         input = np.zeros(input_shape)
-        out = mean_layer.output(theano.shared(input)).eval()
+        out = mean_layer.output(shared(input)).eval()
         np.testing.assert_equal(out, -np.ones(input_shape))
 
     def test_mean_file(self):
@@ -151,7 +151,7 @@ class TestSubstractMeanLayer(TestCase):
         np.save(f, mean)
         f.flush()
         mean_layer = SubtractMeanLayer(name='mean', mean_file=f.name)
-        out = mean_layer.output(theano.shared(input)).eval()
+        out = mean_layer.output(shared(input)).eval()
         np.testing.assert_equal(out, -mean)
 
 
@@ -295,7 +295,7 @@ class TestConvolutionLayer(TestCase):
         conv = self.simple_conv_layer
         input_shape = conv.input_shape
         conv.fill_parameters()
-        x = theano.shared(self.gauss.fill(input_shape))
+        x = shared(self.gauss.fill(input_shape))
         conv_out = conv.output(x).eval()
         self.assertTupleEqual(conv_out.shape, (1, 1, 12, 12))
         self.assertTupleEqual(conv.output_shape(input_shape), (1, 1, 12, 12))
@@ -313,7 +313,7 @@ class TestConvolutionLayer(TestCase):
 
         input_shape = conv.input_shape
         conv.fill_parameters()
-        x = theano.shared(self.gauss.fill(input_shape))
+        x = shared(self.gauss.fill(input_shape))
         conv_out = conv.output(x).eval()
         self.assertTupleEqual(conv_out.shape, (1, 20, 20, 20))
         self.assertTupleEqual(conv.output_shape(input_shape), (1, 20, 20, 20))
@@ -330,7 +330,7 @@ class TestConvolutionLayer(TestCase):
                 filter_shape = conv.filter_shape()
                 self.assertEqual(bs(filter_shape), conv.num_feature_maps)
                 self.assertEqual(chans(filter_shape), chans(input_shape))
-                x = theano.shared(GaussianFiller().fill(input_shape))
+                x = shared(GaussianFiller().fill(input_shape))
                 conv_out = conv.output(x).eval()
                 expected_output_shape = conv.output_shape(input_shape)
 
@@ -358,7 +358,7 @@ class TestActivationLayers(TestCase):
         for layer_class, func in self.layer_classes:
             layer = create_layer(layer_class)
             dummy_data = np.random.sample(shape)
-            out = layer.output(theano.shared(dummy_data)).eval()
+            out = layer.output(shared(dummy_data)).eval()
             assert_almost_equal(out, func(dummy_data))
             self.assertTupleEqual(out.shape, layer.output_shape(shape))
             self.assertTupleEqual(layer.output_shape(shape), shape)
@@ -381,7 +381,7 @@ class TestPoolingLayer(TestCase):
         layer = create_layer(PoolingLayer, poolsize=(2, 2),
                              ignore_border=True)
         for input_shape in input_shapes:
-            input = theano.shared(np.random.sample(input_shape))
+            input = shared(np.random.sample(input_shape))
             out = layer.output(input)
 
 
@@ -396,7 +396,7 @@ class TestInnerProductLayer(TestCase):
         np_input = np.random.sample((1, 3, 28, 28))
         reshaped = np.reshape(np_input, (1, -1))
         np_output = np.dot(reshaped, layer.weight.tensor.T) + layer.bias.tensor
-        input = theano.shared(np_input)
+        input = shared(np_input)
         np.testing.assert_almost_equal(
             layer.output(input).eval(),
             np_output)
@@ -427,7 +427,7 @@ class TestLRNLayer(TestCase):
             return np_arr / scale**beta
 
         test_np = np.random.uniform(size=(1, 16, 32, 32))
-        test_shared = theano.shared(test_np, 'test_shared')
+        test_shared = shared(test_np, 'test_shared')
         lrn = LRNLayer(name="lrn", n=n, alpha=alpha, k=k)
         out = lrn.output(test_shared)
         np.testing.assert_almost_equal(out.eval(), ground_truth_lrn(test_np))
