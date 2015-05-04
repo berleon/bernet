@@ -30,36 +30,7 @@ from bernet.utils import size, sha256_of_file
 theano.config.mode = "FAST_COMPILE"
 
 
-class NetworkBaseTests(object):
-    NETWORK_CLS = None
-
-    def parameters_not_changing(self, net):
-        for p1, p2 in zip(net.parameters_as_shared(),
-                          net.parameters_as_shared()):
-            self.assertEqual(p1, p2)
-
-    @unittest.skip
-    def test_forward(self):
-        net = self.simple_network
-        input_shape = (20, 20)
-        outs = net.forward(np.random.sample(input_shape))
-        self.assertEqual(size(outs.shape), size(input_shape))
-
-    def test_check_sha256sum(self):
-        with tempfile.NamedTemporaryFile("w+b") as f:
-            random = np.random.sample((200, 200))
-            np.savez(f, rand=random)
-            f.seek(0)
-            self.assertRaises(ValueError, self.NETWORK_CLS,
-                              name="test_net", data_url="file://" + f.name,
-                              input_shape=(1, 1),
-                              data_sha256="wrong",
-                              layers=[], connections=[])
-
-
-class TestFeedForwardNet(TestCase, NetworkBaseTests):
-    NETWORK_CLS = FeedForwardNet
-
+class TestFeedForwardNet(TestCase):
     def setUp(self):
         self.one_layer_net = FeedForwardNet(
             name="test", input_shape=(1, 3, 16, 16),
@@ -80,8 +51,31 @@ class TestFeedForwardNet(TestCase, NetworkBaseTests):
                 InnerProductLayer(name="ip#2", n_units=10, source="tanh#1",
                                   input_shape=(1, 256)),
                 SoftmaxLayer(name="softmax#1", source="ip#2"),
-            ]
+                ]
         )
+
+    def parameters_not_changing(self, net):
+        for p1, p2 in zip(net.parameters_as_shared(),
+                          net.parameters_as_shared()):
+            self.assertEqual(p1, p2)
+
+    @unittest.skip
+    def test_forward(self):
+        net = self.simple_network
+        input_shape = (20, 20)
+        outs = net.forward(np.random.sample(input_shape))
+        self.assertEqual(size(outs.shape), size(input_shape))
+
+    def test_check_sha256sum(self):
+        with tempfile.NamedTemporaryFile("w+b") as f:
+            random = np.random.sample((200, 200))
+            np.savez(f, rand=random)
+            f.seek(0)
+            self.assertRaises(ValueError, FeedForwardNet,
+                              name="test_net", data_url="file://" + f.name,
+                              input_shape=(1, 1),
+                              data_sha256="wrong",
+                              layers=[], connections=[])
 
     def test_constructor(self):
         self.assertEqual(type(self.one_layer_net), FeedForwardNet)

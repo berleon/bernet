@@ -26,7 +26,7 @@ from bernet.loss import NegativeLogLikelihood
 from bernet.utils import symbolic_tensor_from_shape
 
 
-class Network(ConfigObject):
+class FeedForwardNet(ConfigObject):
     """
     Network connects multiple :class:`.Layer` together.
 
@@ -65,6 +65,9 @@ class Network(ConfigObject):
 
     layers = REPEAT(ANY_LAYER(), doc="A list of :class:`.Layer`")
 
+    loss = OPTIONAL(ENUM('NLL', 'MSE'),
+                    default=NegativeLogLikelihood(), doc="")
+
     MODELS_DIR = os.path.expanduser("~/.bernet/")
 
     def __init__(self,  **kwargs):
@@ -72,13 +75,14 @@ class Network(ConfigObject):
         self.data = {}
         if self.data_url is not None and self.data_sha256 is None:
             raise ConfigError("Field data_url requires data_sha256 to be set")
-
         if self.data_url is not None:
             file_name = os.path.join(self.MODELS_DIR,
                                      kwargs['name'] + "_parameters.npz")
             data_url = kwargs['data_url']
             data_sha256 = kwargs['data_sha256']
             self.data = self._get_data(file_name, data_url, data_sha256)
+        self._setup_connections()
+        self._setup_parameters()
 
     def _get_data(self, file_path, url, sha256_expected):
         file_dir = os.path.dirname(file_path)
@@ -126,30 +130,6 @@ class Network(ConfigObject):
         return [p.shared for p in self.parameters()]
 
     def shape_info(self):
-        raise NotImplementedError()
-
-    def forward(self, np_arr):
-        raise NotImplementedError()
-
-    def output(self):
-        raise NotImplementedError()
-
-    def layer_outputs(self, input):
-        raise NotImplementedError()
-
-
-class FeedForwardNet(Network):
-
-    input_shape = REQUIRED(Shape())
-    loss = OPTIONAL(ENUM('NLL', 'MSE'),
-                    default=NegativeLogLikelihood(), doc="")
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._setup_connections()
-        self._setup_parameters()
-
-    def shape_info(self):
         input_shape = self.input_shape
         info = {}
         for layer in self.layer_iter():
@@ -167,14 +147,6 @@ class FeedForwardNet(Network):
 
             input_shape = output_shape
         return info
-
-    def get_layer(self, name):
-        """Return the layer with layer.name == `name`. If no such layer
-        exists, None is returned."""
-        for l in self.layers:
-            if l.name == name:
-                return l
-        return None
 
     def get_parameter(self, name):
         for p in self.parameters():
