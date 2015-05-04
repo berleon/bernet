@@ -203,10 +203,8 @@ class FeedForwardNet(ConfigObject):
     def _setup_parameters(self):
         input_shape = self.input_shape
         for layer in self.layer_iter():
-            print("[{}] input shape: {}".format(layer.name, input_shape))
             self._setup_parameters_for_layer(layer)
             input_shape = layer.output_shape(input_shape)
-            print("[{}] output shape: {}".format(layer.name, input_shape))
 
     def _setup_parameters_for_layer(self, layer):
         if issubclass(type(layer), ParameterLayer):
