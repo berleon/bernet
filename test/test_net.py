@@ -15,10 +15,11 @@ import os
 import tempfile
 
 from unittest import TestCase
-import unittest
 
 import numpy as np
 import theano
+import theano.tensor as T
+from theano import shared
 
 from bernet.net import FeedForwardNet
 from bernet.layer import ConvLayer, SoftmaxLayer, TanHLayer, \
@@ -53,11 +54,14 @@ class TestFeedForwardNet(TestCase):
                 SoftmaxLayer(name="softmax#1", source="ip#2"),
                 ]
         )
+        self.networks = [self.one_layer_net, self.two_layer_net,
+                         self.innerprod_net]
 
-    def parameters_not_changing(self, net):
-        for p1, p2 in zip(net.parameters_as_shared(),
-                          net.parameters_as_shared()):
-            self.assertEqual(p1, p2)
+    def test_parameters_not_changing(self):
+        for net in self.networks:
+            for p1, p2 in zip(net.parameters_as_shared(),
+                              net.parameters_as_shared()):
+                self.assertEqual(p1, p2)
 
     def test_forward(self):
         net = self.one_layer_net
