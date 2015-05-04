@@ -1,5 +1,5 @@
 name: shallow-net
-input_shape: [&bs 64, 1, 16, 16]
+input_shape: [&bs 64, 1, 28, 28]
 layers:
 - !InnerProduct
   name: ip#1

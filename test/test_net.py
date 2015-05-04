@@ -103,7 +103,6 @@ class TestFeedForwardNet(TestCase):
 
     def test_constructor(self):
         self.assertEqual(type(self.one_layer_net), FeedForwardNet)
-
         self.assertEqual(type(self.two_layer_net), FeedForwardNet)
         self.assertEqual(self.two_layer_net.input_layer.name, "tanh")
 
@@ -142,6 +141,15 @@ class TestFeedForwardNet(TestCase):
                 'ip#2_weight': (10, 256)
             }
         })
+
+    def test_raise_error_on_shape_mismatch(self):
+        self.assertRaisesRegex(
+            ConfigError, "Shape mismatch", FeedForwardNet,
+            name="shape_error", input_shape=(1, 4),
+            layers=[
+                InnerProductLayer(name="ip",  input_shape=(1, 5), n_units=10)
+            ]
+        )
 
     def test_load_shallow_net(self):
         _dir = os.path.dirname(os.path.realpath(__file__))
@@ -197,7 +205,7 @@ class TestFeedForwardNet(TestCase):
                             shape=params['ip1_bias']
                         ),
                         n_units=400,
-                        input_shape=(1, 3*20*20)
+                        input_shape=(1, 3*20)
                     ),
                     ConvLayer(
                         name='conv1',

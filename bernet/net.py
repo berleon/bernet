@@ -20,10 +20,10 @@ import theano.tensor as T
 
 from bernet import utils
 from bernet.config import REQUIRED, OPTIONAL, ConfigObject, REPEAT, \
-    ConfigError, ENUM
+    ConfigError, ENUM, config_error
 from bernet.layer import ParameterLayer, ANY_LAYER, Shape, Connection
 from bernet.loss import NegativeLogLikelihood
-from bernet.utils import symbolic_tensor_from_shape
+from bernet.utils import symbolic_tensor_from_shape, size
 
 
 class FeedForwardNet(ConfigObject):
@@ -83,6 +83,7 @@ class FeedForwardNet(ConfigObject):
             self.data = self._get_data(file_name, data_url, data_sha256)
         self._setup_connections()
         self._setup_parameters()
+        self._check_shapes()
 
     def _get_data(self, file_path, url, sha256_expected):
         file_dir = os.path.dirname(file_path)
@@ -190,6 +191,26 @@ class FeedForwardNet(ConfigObject):
             self._connection_to_layer[l.name] = con
             self.connections.append(con)
 
+    def _check_shapes(self):
+        input_shape = self.input_shape
+        last_layer = "network `{}` has input_shape of".format(self.name)
+        for layer in self.layer_iter():
+            if hasattr(layer, 'input_shape') and \
+                    size(layer.input_shape) != size(input_shape):
+                raise config_error(
+                    "Shape mismatch: {} `{}` has input_shape of {}, but "
+                    "{} {}.".format(
+                        layer.__class__.__name__,
+                        layer.name,
+                        layer.input_shape,
+                        last_layer,
+                        input_shape
+                    ))
+            output_shape = layer.output_shape(input_shape)
+            last_layer = "the previous layer `{}` has a output_shape of"\
+                .format(layer.name)
+            input_shape = output_shape
+
     def layer_iter(self):
         layer = self.input_layer
         while True:
@@ -201,10 +222,8 @@ class FeedForwardNet(ConfigObject):
                 return
 
     def _setup_parameters(self):
-        input_shape = self.input_shape
         for layer in self.layer_iter():
             self._setup_parameters_for_layer(layer)
-            input_shape = layer.output_shape(input_shape)
 
     def _setup_parameters_for_layer(self, layer):
         if issubclass(type(layer), ParameterLayer):
