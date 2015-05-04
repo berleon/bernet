@@ -102,6 +102,12 @@ class TestFeedForwardNet(TestCase):
         self.assertEqual(net.get_layer("softmax#1").name, "softmax#1")
         self.assertRaises(KeyError, net.get_layer, 'does not exist')
 
+    def test_get_parameter(self):
+        net = self.innerprod_net
+        self.assertEqual(net.get_parameter("ip#1_weight").name, "ip#1_weight")
+        self.assertEqual(net.get_parameter("ip#2_weight").name, "ip#2_weight")
+        self.assertRaises(KeyError, net.get_parameter, 'does not exist')
+
     def test_constructor(self):
         self.assertEqual(type(self.one_layer_net), FeedForwardNet)
 

@@ -152,7 +152,7 @@ class FeedForwardNet(ConfigObject):
         for p in self.parameters():
             if p.name == name:
                 return p
-        return KeyError("No parameter with name {}.".format(name))
+        raise KeyError("No parameter with name {}.".format(name))
 
     def _setup_input_layer(self):
         layers_without_a_source = [l for l in self.layers if l.source is None]
