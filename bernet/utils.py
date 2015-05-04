@@ -244,7 +244,7 @@ def load_images(image_paths, size):
     shape = (len(image_paths), 3, size[0], size[1])
     arr = np.empty(shape, dtype=theano.config.floatX)
     for i, img_path in enumerate(image_paths):
-        img = Image.open(img_path)
+        img = Image.open(img_path).convert('RGB')
         if img.size != size:
             width, height = img.size
             left, right, upper, lower = 0, width, 0, height
