@@ -76,6 +76,25 @@ class TestFeedForwardNet(TestCase):
                               input_shape=(1, 1),
                               data_sha256="wrong",
                               layers=[], connections=[])
+    def test_minibatch_func(self):
+        net = self.one_layer_net
+        epoch_shape = (32,) + net.input_shape[1:]
+        input = np.random.sample(epoch_shape)
+        shared_input = shared(input)
+        forward = net.minibatch_func(shared_input)
+        np.testing.assert_equal(
+            forward(2, 2),
+            net.forward(input[2:2]))
+
+    def test_minibatch_func_updates(self):
+        net = self.one_layer_net
+        epoch_shape = (32,) + net.input_shape[1:]
+        input = np.random.sample(epoch_shape)
+        shared_input = shared(input)
+        g = shared(0)
+        forward = net.minibatch_func(shared_input, updates={g: 8})
+        forward(2, 4)
+        self.assertEqual(g.eval(), 8)
 
     def test_constructor(self):
         self.assertEqual(type(self.one_layer_net), FeedForwardNet)

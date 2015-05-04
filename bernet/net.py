@@ -234,16 +234,15 @@ class FeedForwardNet(ConfigObject):
 
         return self._forward_func(input)[0]
 
-    def forward_minibatch(self, epoch_size):
-        epoch_shape = (epoch_size, ) + self.input_shape[1:]
-        input = theano.shared(np.zeros(epoch_shape), 'input')
+    def minibatch_func(self, shared_input, updates=None):
         x = symbolic_tensor_from_shape('x', self.input_shape)
         begin = T.iscalar('minibatch_begin')
         end = T.iscalar('minibatch_end')
         y = self.output(x)
         func = theano.function([begin, end], [y],
-                               givens={x: input[begin:end, :]})
-        return input, lambda b, e: func(b, e)[0]
+                               givens={x: shared_input[begin:end, :]},
+                               updates=updates)
+        return lambda b, e: func(b, e)[0]
 
     def output(self, input: 'symbolic tensor'):
         return self.layer_outputs(input)[self.output_layer.name]
