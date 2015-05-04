@@ -117,7 +117,7 @@ class FeedForwardNet(ConfigObject):
         for l in self.layers:
             if l.name == name:
                 return l
-        return None
+        raise KeyError("Layer with name {} does not exists.".format(name))
 
     def parameters(self):
         params = []

@@ -96,6 +96,12 @@ class TestFeedForwardNet(TestCase):
         forward(2, 4)
         self.assertEqual(g.eval(), 8)
 
+    def test_get_layer(self):
+        net = self.innerprod_net
+        self.assertEqual(net.get_layer("ip#1").name, "ip#1")
+        self.assertEqual(net.get_layer("softmax#1").name, "softmax#1")
+        self.assertRaises(KeyError, net.get_layer, 'does not exist')
+
     def test_constructor(self):
         self.assertEqual(type(self.one_layer_net), FeedForwardNet)
 
