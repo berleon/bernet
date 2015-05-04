@@ -23,7 +23,7 @@ import theano
 from bernet.net import FeedForwardNet
 from bernet.layer import ConvLayer, SoftmaxLayer, TanHLayer, \
     InnerProductLayer, Parameter
-from bernet.config import load
+from bernet.config import load, ConfigError
 from bernet.utils import size, sha256_of_file
 
 
@@ -65,16 +65,6 @@ class TestFeedForwardNet(TestCase):
         outs = net.forward(np.random.sample(input_shape))
         self.assertEqual(size(outs.shape), size(input_shape))
 
-    def test_check_sha256sum(self):
-        with tempfile.NamedTemporaryFile("w+b") as f:
-            random = np.random.sample((200, 200))
-            np.savez(f, rand=random)
-            f.seek(0)
-            self.assertRaises(ValueError, FeedForwardNet,
-                              name="test_net", data_url="file://" + f.name,
-                              input_shape=(1, 1),
-                              data_sha256="wrong",
-                              layers=[], connections=[])
     def test_minibatch_func(self):
         net = self.one_layer_net
         epoch_shape = (32,) + net.input_shape[1:]
@@ -159,6 +149,21 @@ class TestFeedForwardNet(TestCase):
             self.assertEqual(net.output_layer.name, 'softmax#1')
             out = net.forward(np.random.sample((64, 1, 28, 28)))
             self.assertTupleEqual(out.shape, (64, 10))
+
+    def test_data_url_requires_sha256sum(self):
+        self.assertRaises(ConfigError, FeedForwardNet, name='wrong_sha256',
+                          input_shape=(1, 1, 1, 1),  layers=[],
+                          data_url="url")
+
+    def test_sha256sum_mismatch_raises_error(self):
+        with tempfile.NamedTemporaryFile("w+b") as f:
+            random = np.random.sample((20, 20))
+            np.savez(f, rand=random)
+            f.seek(0)
+            self.assertRaisesRegex(
+                ValueError, "sha256sum", FeedForwardNet,
+                name="test_net", data_url="file://" + f.name,
+                input_shape=(1, 1), data_sha256="wrong", layers=[])
 
     def test_loading_parameters_from_file(self):
         params = {
