@@ -59,10 +59,9 @@ class TestFeedForwardNet(TestCase):
                           net.parameters_as_shared()):
             self.assertEqual(p1, p2)
 
-    @unittest.skip
     def test_forward(self):
-        net = self.simple_network
-        input_shape = (20, 20)
+        net = self.one_layer_net
+        input_shape = (1, 3, 16, 16)
         outs = net.forward(np.random.sample(input_shape))
         self.assertEqual(size(outs.shape), size(input_shape))
 
