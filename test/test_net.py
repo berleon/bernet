@@ -113,9 +113,8 @@ class TestFeedForwardNet(TestCase):
 
         net = self.innerprod_net
         self.assertEqual(net.input_layer.name, "ip#1")
-
         self.assert_(not net.is_connected("ip#1", "softmax#1"))
-        self.assert_(not net.is_connected("softmax", "ip#1"))
+        self.assert_(not net.is_connected("softmax#1", "ip#1"))
         self.assert_(net.is_connected("ip#1", "tanh#1"))
         self.assert_(net.is_connected("tanh#1", "ip#2"))
         self.assert_(net.is_connected("ip#2", "softmax#1"))
